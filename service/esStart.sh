@@ -29,6 +29,11 @@ ELASTIC_INSTALL_HOME=${INSTALL_HOME}/Elastic
 ## ELASTIC_HOME  elastic 根目录：/opt/hzgc/bigdata/Elastic/elastic
 ELASTIC_HOME=${ELASTIC_INSTALL_HOME}/elastic
 
+if [ ! -d "$LOG_DIR" ];then
+	mkdir ${LOG_DIR}
+fi
+
+
 # 打印系统时间
 echo ""  | tee  -a  $LOG_FILE
 echo ""  | tee  -a  $LOG_FILE
@@ -53,7 +58,7 @@ echo "" | tee -a $LOG_FILE
 # 启动ES
 echo "**********************************************" | tee -a $LOG_FILE
 for name in $(cat ${CONF_DIR}/hostnamelists.properties);do
-    echo -e "启动${name}节点下ES："                    | tee -a $LOG_FILE
+    echo -e "启动${name}节点下ES..."                    | tee -a $LOG_FILE
     ssh root@$name "source /etc/profile;su -c '${ELASTIC_HOME}/bin/elasticsearch -d' elsearch" # 切换为elsearch用户
 done
 # 验证ES是否启动成功

@@ -90,7 +90,7 @@ for ip in $(cat ${CONF_DIR}/iplists.properties);do
 done
 tmp=${tmp%?}
 # 替换kafka-manager/conf/application.conf中：kafka-manager.zkhosts=value（替换kafka-manager.zkhosts字段的值value）
-sed -i "s#^kafka-manager.zkhosts=\".*#kafka-manager.zkhosts=${tmp}#g" ${KAFKA_HOME}/kafka-manager/conf/application.conf
+sed -i "s#^kafka-manager.zkhosts=\".*#kafka-manager.zkhosts=\"${tmp}\"#g" ${KAFKA_HOME}/kafka-manager/conf/application.conf
 
 echo "配置完毕......"  | tee  -a  $LOG_FILE
 
