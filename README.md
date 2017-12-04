@@ -1,0 +1,4 @@
+# ClusterBuildScripts
+开源集群一键安装脚本
+安装包需要根据version.properties自己下载
+安装步骤可按照instal-guide.doc进行配置安装
