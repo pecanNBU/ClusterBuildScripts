@@ -43,7 +43,7 @@ if [ $? -eq 0 ];then
 else 
     echo  -e 'NameServer start failed \n'
 fi
-ssh root@$(sed -n '2p' ${CONF_DIR}/server_ip.properties) "java -jar ${ROCKETMQ_HOME}/lib/rocketmq-console-ng-1.0.0.jar --server.port=8083 --rocketmq.config.namesrvAddr=${NameServer_Port}"
+ssh root@$(sed -n '2p' ${CONF_DIR}/server_ip.properties) "source /etc/profile; nohup java -jar ${ROCKETMQ_HOME}/lib/rocketmq-console-ng-1.0.0.jar --server.port=8083 --rocketmq.config.namesrvAddr=${NameServer_Port} > ${LOG_FILE} 2>&1 &"
 if [ $? -eq 0 ];then
     echo  -e 'RocketMQ UI 配置成功 \n'
 else 

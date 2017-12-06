@@ -92,9 +92,10 @@ listen ftp
     #weight num权重 默认为1，最大值为256，0表示不参与负载均衡
     #check启用后端执行健康检测
     #inter num 健康状态检测时间间隔
-    server s1 172.18.18.113:2121 weight 1 maxconn 10000 check inter 10s 
-    #server s2 172.18.18.112:2121 weight 1 maxconn 10000 check inter 10s  
-    server s3 172.18.18.114:2121 weight 1 maxconn 10000 check inter 10s  
+
+    #server s106 172.18.18.106:2121 weight 1 maxconn 10000 check inter 10s 
+    server s107 172.18.18.107:2121 weight 1 maxconn 10000 check inter 10s  
+    server s108 172.18.18.108:2121 weight 1 maxconn 10000 check inter 10s  
 
 ########统计页面配置########
 listen admin_stats  

@@ -37,7 +37,7 @@ for host in $(cat ${CONF_DIR}/hostnamelists.properties)
 do
     echo "scp configuration to node ${host}"
     scp  -r ${ROOT_HOME}/service  ${ROOT_HOME}/conf ${ROOT_HOME}/tool env_bigdata.sh root@${host}:/opt/hzgc  > /dev/null
-	ssh root@${hostname}  "chmod -R 755  opt/hzgc"
+	ssh root@${host}  "chmod -R 755 /opt/hzgc"
 done
 
 
