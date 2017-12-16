@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+#set -x
 
 #cd `dirname $0`
 #:pwd
@@ -46,6 +46,6 @@ export ROCKETMQ_HOME=${INSTALL_HOME}/RocketMQ/rocketmq
 export PATH=$PATH:$ROCKETMQ_HOME/bin
 
 # xcall
-export PATH=$PATH:/opt/tool/xcall
+export PATH=$PATH:/opt/hzgc/tool
 
 set +x

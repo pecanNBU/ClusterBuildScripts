@@ -23,9 +23,15 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/hadoopStop.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 
-echo -e '关闭Hadoop'
+##获取hadoop主备节点
+Hadoop_Masters=$(grep Hadoop_NameNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+namenode_arr=(${Hadoop_Masters//;/ }) 
+MASTER1=${namenode_arr[0]}
+MASTER2=${namenode_arr[1]}
+
+echo -e '关闭Hadoop...........................'
 
 ${INSTALL_HOME}/Hadoop/hadoop/sbin/stop-all.sh
 	if [ $? -eq 0 ];then
@@ -33,8 +39,12 @@ ${INSTALL_HOME}/Hadoop/hadoop/sbin/stop-all.sh
 	else 
 	    echo -e 'hadoop stop failed \n'
 	fi
+ssh root@$MASTER2 "source /etc/profile; ${INSTALL_HOME}/Hadoop/hadoop/sbin/yarn-daemon.sh stop resourcemanager"
+
 
 # 验证Hadoop是否停止成功
 echo -e "********************验证Hadoop是否停止成功*********************"
-source /etc/profile
-xcall jps 
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'NameNode|NodeManager|DataNode|ResourceManager|JournalNode|DFSZKFailoverController|jps show as bellow'
+

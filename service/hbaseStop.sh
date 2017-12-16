@@ -5,6 +5,7 @@
 ## Description: 关闭hbase集群的脚本.
 ## Version:     1.0
 ## Author:      qiaokaifeng
+## Editor:      mashencai
 ## Created:     2017-10-24
 ################################################################################
 
@@ -23,7 +24,7 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/hbaseStop.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 
 echo -e "关闭HBase集群 \n"
 ${INSTALL_HOME}/HBase/hbase/bin/stop-hbase.sh
@@ -32,10 +33,13 @@ ${INSTALL_HOME}/HBase/hbase/bin/stop-hbase.sh
 	else 
 	    echo -e "hbase stop failed\n"
 	fi
-ssh root@$(sed -n '2p' ${CONF_DIR}/hostnamelists.properties) "${INSTALL_HOME}/HBase/hbase/bin/hbase-common.sh stop master"
+	
+#获取habse的Hmaster主机名
+HBASE_HMASTER=$(grep HBase_Hmaster ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+ssh root@${HBASE_HMASTER} "${INSTALL_HOME}/HBase/hbase/bin/hbase-common.sh stop master"
 
 # 验证HBase是否停止成功
 echo -e "********************验证HBase是否停止成功*********************"
-source /etc/profile
-xcall jps | grep HMaster
-xcall jps | grep HRegionServer
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'HMaster|HRegionServer|jps show as bellow'

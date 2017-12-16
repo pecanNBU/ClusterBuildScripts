@@ -3,9 +3,9 @@
 ## Copyright:   HZGOSUN Tech. Co, BigData
 ## Filename:    hbaseStart.sh
 ## Description: 启动hbase集群的脚本.
-##             (默认在hostnamelists.properties第二行的节点上启动Hbase高可用的HMaster)
 ## Version:     1.0
 ## Author:      qiaokaifeng
+## Editor:      mashencai
 ## Created:     2017-10-24
 ################################################################################
 
@@ -24,7 +24,7 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/hbaseStart.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 
 echo -e "启动HBase集群 \n"
 ${INSTALL_HOME}/HBase/hbase/bin/start-hbase.sh
@@ -36,7 +36,9 @@ ${INSTALL_HOME}/HBase/hbase/bin/start-hbase.sh
 
 sleep 5s
 
-ssh root@$(sed -n '2p' ${CONF_DIR}/hostnamelists.properties) "${INSTALL_HOME}/HBase/hbase/bin/hbase-daemon.sh start master"
+#获取habse的高可用Hmaster主机名
+HBASE_HMASTER=$(grep HBase_Hmaster ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+ssh root@${HBASE_HMASTER} "${INSTALL_HOME}/HBase/hbase/bin/hbase-daemon.sh start master"
         if [ $? -eq 0 ];then
             echo -e 'ha hmaster success \n'
         else
@@ -45,7 +47,9 @@ ssh root@$(sed -n '2p' ${CONF_DIR}/hostnamelists.properties) "${INSTALL_HOME}/HB
 
 # 验证HBase是否启动成功
 echo -e "********************验证HBase是否启动成功*********************"
-source /etc/profile
-xcall jps | grep HMaster
-xcall jps | grep HRegionServer
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'HMaster|HRegionServer|jps show as bellow'
+#xcall jps | grep HMaster
+#xcall jps | grep HRegionServer
 

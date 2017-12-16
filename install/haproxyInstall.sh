@@ -9,7 +9,6 @@
 ## Created:     2017-11-8 
 ################################################################################
 
-#set -x
  
 cd `dirname $0`
 ## 脚本所在目录
@@ -19,14 +18,10 @@ cd ..
 ROOT_HOME=`pwd`
 ## 配置文件目录
 CONF_DIR=${ROOT_HOME}/conf
-## 日记目录
-LOG_DIR=$(sed -n '8p' ${CONF_DIR}/install_home.properties)/haproxy
-## haproxy 安装日记
-LOG_FILE=${LOG_DIR}/haproxyInstall.log
 ##  haproxy 安装包目录
 HAPROXY_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## HAPROXY_INSTALL_HOME HAPROXY 安装目录
 HAPROXY_INSTALL_HOME=${INSTALL_HOME}/HAPrxoy
 ## HAPROXY_HOME  HAPROXY 根目录
@@ -39,6 +34,12 @@ HAPROXY_LOG_FILE=${HAPROXY_LOG_DIR}/haproxy.log
 HAPROXY_INIT=/etc/ini.d/haproxy
 ##HAPROXY_CFG haproxy 配置文件
 HAPROXY_CFG=${HAPROXY_HOME}/haproxy.cfg
+
+INSTALL_Host=$(grep HAproxy_AgencyNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+### HAproxy配置文件
+HAproxy_conf_file=$HAPROXY_HOME/haproxy.cfg 
+### HAproxy临时文件
+TMP_FILE=$HAPROXY_HOME/tmp
 
 
 #####################################################################
@@ -92,10 +93,7 @@ listen ftp
     #weight num权重 默认为1，最大值为256，0表示不参与负载均衡
     #check启用后端执行健康检测
     #inter num 健康状态检测时间间隔
-
-    #server s106 172.18.18.106:2121 weight 1 maxconn 10000 check inter 10s 
-    server s107 172.18.18.107:2121 weight 1 maxconn 10000 check inter 10s  
-    server s108 172.18.18.108:2121 weight 1 maxconn 10000 check inter 10s  
+    ##server s112 172.18.18.112:2121 weight 1 maxconn 10000 check inter 10s  
 
 ########统计页面配置########
 listen admin_stats  
@@ -110,6 +108,42 @@ listen admin_stats
 }
  
 #####################################################################
+# 函数名:cfg_config 
+# 描述: 修改cfg配置文件
+# 参数: N/A
+# 返回值: N/A
+# 其他: N/A
+#####################################################################
+function cfg_config ()
+{
+    echo ""  | tee -a $LOG_FILE
+    echo "*****************************************************" | tee -a $LOG_FILE
+    echo "" | tee -a $LOG_FILE
+    echo "配置haproxy.cfg.............................."  | tee  -a  $LOG_FILE
+    #声明一个数组用来存储host=ip
+	declare -a host_iparr
+    # 根据ftp_serviceip字段，查找配置文件中，FTP服务节点主机名
+    FTP_SERVICEIPS=$(grep HAproxy_ServiceNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+    ftp_arr=(${FTP_SERVICEIPS//;/ }) 
+	#找出主机名对应的IP
+	for host_name in ${ftp_arr[@]}
+    do
+        ip=$(cat /etc/hosts|grep "$host_name" | awk '{print $1}')
+        host_ip=${host_name}"="${ip}
+        host_iparr=(${host_iparr[*]} ${host_ip})
+    done
+    # 在文件末尾添加FTP服务节点hostname=ip 
+    for ftp_ip in ${host_iparr[@]}
+    do
+        echo "server ${ftp_ip//=/ }:2121 weight 1 maxconn 10000 check inter 10s" >> ${TMP_FILE}
+    done
+	# 将临时文件中hostname ip追加到##server s2 172.18.18.112:2121 weight 1 maxconn 10000 check inter 10s 
+	sed -i "/##server/ r ${TMP_FILE}" $HAproxy_conf_file 
+        rm -rf ${TMP_FILE}
+	echo "配置config_Haproxy完毕......"  | tee  -a  $LOG_FILE
+}
+
+#####################################################################
 # 函数名:install_ha_init 
 # 描述: 将haproxy服务添加到开机启动
 # 参数: N/A
@@ -121,12 +155,34 @@ function install_ha_init ()
     if [ ! -e "$HAPROXY_INIT" ]; then
         cp ${ROOT_HOME}/service/haproxy-control.sh /etc/init.d/haproxys
         sed -i "s#HAPROXY_DIR=#HAPROXY_DIR=${HAPROXY_HOME}#g" /etc/init.d/haproxys
-        chmod +x /etc/init.d/haproxys
-        chkconfig --add haproxys
-        chkconfig haproxys on
     else
         echo "File haproxy already there !" | tee -a $LOG_FILE
     fi
+}
+
+#####################################################################
+# 函数名: writeUI_file
+# 描述: 将haproxy的UI地址写到指定文件中
+# 参数: N/A
+# 返回值: N/A
+# 其他: N/A
+#####################################################################
+function writeUI_file()
+{
+    echo ""  | tee -a $LOG_FILE
+    echo "**********************************************" | tee -a $LOG_FILE
+    echo "准备将haproxy的UI地址写到指定文件中............"    | tee -a $LOG_FILE
+    HaproxyWebUI_Dir=$(grep WebUI_Dir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+    Install_IP=$(cat /etc/hosts|grep "$INSTALL_Host" | awk '{print $1}')
+    Haproxy_UI="http://${Install_IP}:8099/stats"
+    mkdir -p ${HaproxyWebUI_Dir}
+    grep -q "HAproxyUI_Address=" ${HaproxyWebUI_Dir}/WebUI_Address
+    if [ "$?" -eq "0" ]  ;then
+        sed -i "s#^HAproxyUI_Address=.*#HAproxyUI_Address=${Haproxy_UI}#g" ${HaproxyWebUI_Dir}/WebUI_Address
+    else
+        echo "##HAproxy_WebUI" >> ${HaproxyWebUI_Dir}/WebUI_Address
+        echo "HAproxyUI_Address=${Haproxy_UI}" >> ${HaproxyWebUI_Dir}/WebUI_Address
+    fi 
 }
  
 #####################################################################
@@ -147,10 +203,20 @@ function main()
         ! grep 'haproxy' /etc/rsyslog.conf && echo 'local1.*            ${HAPROXY_HOME}/log/haproxy.log' >> /etc/rsyslog.conf
         sed -ir 's/SYSLOGD_OPTIONS="-m 0"/SYSLOGD_OPTIONS="-r -m 0"/g' /etc/sysconfig/rsyslog 
         install_ha_cfg
+        cfg_config
+        writeUI_file
         install_ha_init
+        echo "将HAproxy根目录分发到${INSTALL_Host}" | tee -a $HAPROXY_LOG_FILE
+        echo "*****************************************************" | tee -a $HAPROXY_LOG_FILE
+        ssh root@$INSTALL_Host "mkdir -p ${HAPROXY_INSTALL_HOME}"
+        rsync -rvl ${HAPROXY_INSTALL_HOME}/haproxy $INSTALL_Host:${HAPROXY_INSTALL_HOME}   > /dev/null
+        ssh root@$INSTALL_Host "mkdir -p ${BIN_DIR}"
+        rsync -rvl ${ROOT_HOME}/service/haproxy-control.sh $INSTALL_Host:${ROOT_HOME}/service/ > /dev/null
+        scp -r /etc/init.d/haproxys $INSTALL_Host:/etc/init.d/
+        ssh root@$INSTALL_Host "source /etc/profile; chmod +x /etc/init.d/haproxys; chkconfig --add haproxys; chkconfig haproxys on"
         rm -rf haproxy-*/
     else
-        echo -e "haproxy is already exists!" | tee -a $LOG_FILE
+        echo -e "haproxy is already exists!" | tee -a $HAPROXY_LOG_FILE
     fi
 }
 

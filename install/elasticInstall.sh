@@ -30,15 +30,19 @@ LOG_DIR=${ROOT_HOME}/logs
 LOG_FILE=${LOG_DIR}/elasticInstall.log
 ##  elastic 安装包目录：
 ELASTIC_SOURCE_DIR=${ROOT_HOME}/component/bigdata
-
 ## 最终安装的根目录，所有bigdata 相关的根目录：/opt/hzgc/bigdata
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## ELASTIC_INSTALL_HOME elastic 安装目录：/opt/hzgc/bigdata/Elastic
 ELASTIC_INSTALL_HOME=${INSTALL_HOME}/Elastic
 ## ELASTIC_HOME  elastic 根目录：/opt/hzgc/bigdata/Elastic/elastic
 ELASTIC_HOME=${ELASTIC_INSTALL_HOME}/elastic
 ## JAVA_HOME
 JAVA_HOME=${INSTALL_HOME}/JDK/jdk
+
+## 获取es的安装节点，放入数组中
+ES_HOSTNAME_LISTS=$(grep ES_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+ES_HOSTNAME_ARRY=(${ES_HOSTNAME_LISTS//;/ })
+echo ${ES_HOSTNAME_ARRY}
 
 ## 创建ELASTIC的安装目录
 mkdir -p ${ELASTIC_HOME}
@@ -88,7 +92,7 @@ function config_yml_hostnamelist()
 	echo ""  | tee -a $LOG_FILE
 
 	tmp=""
-	for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+	for hostname in ${ES_HOSTNAME_ARRY[@]};do
 		tmp="$tmp\"${hostname}\","  # 拼接字符串
 	done
 	tmp=${tmp%?}
@@ -113,7 +117,7 @@ function rsync_file(){
 	echo ""  | tee -a $LOG_FILE
 	echo "**********************************************" | tee -a $LOG_FILE
 	echo "please waitinng, 解压后安装文件夹分发中........"  | tee -a $LOG_FILE
-	for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+	for hostname in ${ES_HOSTNAME_ARRY[@]};do
 		ssh root@${hostname}  "mkdir -p ${ELASTIC_INSTALL_HOME}"  
 		rsync -rvl ${ELASTIC_SOURCE_DIR}/elastic   root@${hostname}:${ELASTIC_INSTALL_HOME}  >/dev/null
 		ssh root@${hostname}  "chmod -R 755   ${ELASTIC_INSTALL_HOME}"  ## 修改拷过去的文件夹权限为可执行
@@ -137,7 +141,7 @@ function config_yml_hostandIP(){
 	echo ""  | tee -a $LOG_FILE
 	echo "**********************************************" | tee -a $LOG_FILE
 	echo "每个节点上配置elasticsearch.yml中的node.name........"  | tee -a $LOG_FILE
-	for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+	for hostname in ${ES_HOSTNAME_ARRY[@]};do
 		
 		## 配置elasticsearch.yml中的node.name: host_name改为当前节点的主机名
 		ssh root@${hostname} "sed -i 's#host_name#${hostname}#g' ${ELASTIC_HOME}/config/elasticsearch.yml"
@@ -192,7 +196,7 @@ function move_file()
 	echo "移动etc_security_limits.d_90-nproc.conf 到 目录/etc/security/limits.d/90-nproc.conf下......"    | tee -a $LOG_FILE
 	echo "移动etc_sysctl.conf 到 目录/etc/sysctl.conf下......"    | tee -a $LOG_FILE
 	echo "" | tee -a $LOG_FILE
-	for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+	for hostname in ${ES_HOSTNAME_ARRY[@]};do
 		ssh root@${hostname} "mv ${ELASTIC_HOME}/config/etc_security_limits.conf   /etc/security/limits.conf"
 		ssh root@${hostname} "mv ${ELASTIC_HOME}/config/etc_security_limits.d_90-nproc.conf   /etc/security/limits.d/90-nproc.conf"
 		ssh root@${hostname} "mv ${ELASTIC_HOME}/config/etc_sysctl.conf   /etc/sysctl.conf"
@@ -231,5 +235,6 @@ echo ""  | tee  -a  $LOG_FILE
 echo "==================================================="  | tee -a $LOG_FILE
 echo "$(date "+%Y-%m-%d  %H:%M:%S")"                       | tee  -a  $LOG_FILE
 main
+echo "安装完毕...."                       | tee  -a  $LOG_FILE
 
 set +x

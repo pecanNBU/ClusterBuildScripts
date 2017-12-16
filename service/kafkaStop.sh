@@ -5,10 +5,11 @@
 ## Description: 关闭kafka集群的脚本.
 ## Version:     1.0
 ## Author:      qiaokaifeng
+## Editor:      mashencai
 ## Created:     2017-10-24
 ################################################################################
 
-set -x
+#set -x
 
 cd `dirname $0`
 ## 脚本所在目录
@@ -23,21 +24,42 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/kafkaStart.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+## kafka的安装节点，放入数组中
+KAFKA_HOSTNAME_LISTS=$(grep Kafka_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+KAFKA_HOSTNAME_ARRY=(${KAFKA_HOSTNAME_LISTS//;/ })
 
 
 echo "关闭Kafka"
-for name in $(cat ${CONF_DIR}/hostnamelists.properties)
+# 删除kafka-manager的PID文件
+cd ${KAFKA_HOME}/kafka-manager
+rm -f RUNNING_PID
+
+# 关闭每个节点上的Kafka和kafka-manager进程
+for name in ${KAFKA_HOSTNAME_ARRY[@]}
 do
-	ssh root@${name}  "source /etc/profile;sh ${INSTALL_HOME}/Kafka/kafka/bin/kafka-server-stop.sh"
-	if [ $? -eq 0 ];then
-	    echo -e "kafka stop success\n"
-	else 
-	    echo -e "kafka stop failed\n"
-	fi
+	# 查找Kafka进程，会有Kafka与kafka-manager两个进程，因此将这两个进程号输出到文件，循环读取删除
+	ssh root@$name '
+	ps ax | grep -i 'kafka' | grep java | grep -v grep | awk "{print \$1}" > ${BIN_DIR}/kafka_del.tmp;
+	for PID in $(cat ${BIN_DIR}/kafka_del.tmp);do
+		if [ -z "$PID" ]; then
+			echo "No kafka server to stop";
+			exit 1;
+		else
+			kill -s TERM $PID;
+			echo "kafka stop success";
+		fi;
+	done;
+	rm -f ${BIN_DIR}/kafka_del.tmp'
+
 done
+
+
 
 # 验证Kafka是否停止成功
 echo -e "********************验证Kafka是否停止成功*********************"
-source /etc/profile
-xcall jps | grep Kafka
+sleep 5s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'Kafka|jps show as bellow'
+
+set +x

@@ -23,54 +23,42 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/rocketmqStart.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## ROCKETMQ_HOME  rocketmq 根目录
 ROCKETMQ_HOME=${INSTALL_HOME}/RocketMQ/rocketmq
 
+NameServer_Host=$(grep RocketMQ_Namesrv ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+Broker_Hosts=$(grep RocketMQ_Broker ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+Broker_HostArr=(${Broker_Hosts//;/ })  
 
-ssh root@$(sed -n '2p' ${CONF_DIR}/server_ip.properties) "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown namesrv"
+NameServer_IP=$(cat /etc/hosts|grep "$NameServer_Host" | awk '{print $1}')
+
+ssh root@$NameServer_Host "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown namesrv"
     if [ $? -eq 0 ];then
         echo  -e 'NameServer stop success \n'
     else 
         echo  -e 'NameServer stop failed \n'
     fi
-
-ssh root@$(sed -n '4p' ${CONF_DIR}/server_ip.properties) "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown broker"
+	
+broker_num=1
+for host_name in ${Broker_HostArr[@]}
+do
+    ssh root@$host_name "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown broker"
+    broker_num=$(($broker_num+1))
     if [ $? -eq 0 ];then
-        echo  -e 'Broker1 stop success \n'
+        echo  -e "Broker$broker_num stop success \n"
     else 
-        echo  -e 'Broker1 stop failed \n'
+        echo  -e "Broker$broker_num stop failed \n"
     fi
+done
 
-ssh root@$(sed -n '6p' ${CONF_DIR}/server_ip.properties) "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown broker"
-    if [ $? -eq 0 ];then
-        echo  -e 'Broker2 stop success \n'
-    else 
-        echo  -e 'Broker2 stop failed \n'
-    fi
 
-line1=$(sed -n '8p' ${CONF_DIR}/server_ip.properties)
-if [ ! -z "${line1}" ];then
-    ssh root@$(sed -n '8p' ${CONF_DIR}/server_ip.properties) "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown broker "
-    if [ $? -eq 0 ];then
-        echo  -e 'Broker3 stop success \n'
-    else
-        echo  -e 'Broker3 stop failed \n'
-    fi
-fi
-
-line2=$(sed -n '10p' ${CONF_DIR}/server_ip.properties)
-if [ ! -z "${line2}" ];then
-    ssh root@$(sed -n '10p' ${CONF_DIR}/server_ip.properties) "source /etc/profile; sh ${ROCKETMQ_HOME}/bin/mqshutdown broker"
-    if [ $? -eq 0 ];then
-        echo  -e 'Broker4 stop success \n'
-    else
-        echo  -e 'Broker4 stop failed \n'
-    fi
-fi
-
-# 验证RocketMQ是否停止成功
-echo -e "********************验证RocketMQ是否停止成功*********************"
-source /etc/profile
-xcall jps | grep NamesrvStartup
-xcall jps | grep BrokerStartup
+# 等待三秒后再验证RocketMq是否停止成功
+echo -e "********************验证RocketMq是否停止成功*********************"
+echo -e "验证Namesrv.."
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'NamesrvStartup|jps show as bellow'
+echo -e "验证Broker.."
+sleep 2s
+xcall jps | grep -E 'BrokerStartup|jps show as bellow'

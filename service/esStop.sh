@@ -21,6 +21,9 @@ CONF_DIR=${ROOT_HOME}/conf
 LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记：../hzgc/logs/esStop.log
 LOG_FILE=${LOG_DIR}/esStop.log
+## es的安装节点，放入数组中
+ES_HOSTNAME_LISTS=$(grep ES_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+ES_HOSTNAME_ARRY=(${ES_HOSTNAME_LISTS//;/ })
 
 #set -x
 
@@ -37,7 +40,7 @@ echo "" | tee -a $LOG_FILE
 echo "开始停止ES服务......"    | tee -a $LOG_FILE
 
 
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+for hostname in ${ES_HOSTNAME_ARRY[@]};do
 	ssh root@$hostname "source /etc/profile; es_pid=\`jps | grep Elasticsearch | gawk '{print \$1}'\`; kill \$es_pid"
 	if [ $? -eq 0 ];then
 	    echo -e "${hostname} es stop success\n" | tee -a $LOG_FILE
@@ -46,12 +49,14 @@ for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
 	fi
 done
 
-# 验证ES是否停止成功
-echo -e "********************验证ES是否停止成功*********************"
-source /etc/profile
-xcall jps | grep Elasticsearch 
-
 echo "" | tee -a $LOG_FILE
 echo "停止ES服务完毕."    | tee -a $LOG_FILE
+
+# 验证ES是否停止成功
+echo -e "********************验证ES是否停止成功*********************"
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'Elasticsearch|jps show as bellow'
+
 
 set +x
