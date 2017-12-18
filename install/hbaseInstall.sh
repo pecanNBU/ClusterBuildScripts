@@ -6,6 +6,7 @@
 ##              实现自动化的脚本
 ## Version:     1.0
 ## Author:      lidiliang
+## Editor:      mashencai
 ## Created:     2017-10-23
 ################################################################################
 
@@ -26,7 +27,14 @@ LOG_FILE=${LOG_DIR}/hbaseInstall.log
 ##  安装包目录
 HBASE_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+
+## hbase的安装节点，需要拼接，放入数组HBASE_HOSTNAME_ARRY中
+HBASE_HMASTER=$(grep HBase_Hmaster ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+HBASE_HREGIONSERVER=$(grep HBase_HRegionServer ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+HBASE_HOSTNAME_LISTS=${HBASE_HMASTER}";"${HBASE_HREGIONSERVER}
+HBASE_HOSTNAME_ARRY=(${HBASE_HOSTNAME_LISTS//;/ })
+
 ## 安装目录
 HBASE_INSTALL_HOME=${INSTALL_HOME}/HBase
 ##组件的根目录
@@ -44,7 +52,7 @@ HBASE_TMP_DIR=${HBASE_HOME}/tmp
 HBASE_ZK_DATADIR=${HBASE_HOME}/hbase_zk_datadir
 
 hostname_num=0
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+for hostname in ${HBASE_HOSTNAME_ARRY[@]};do
     let hostname_num++
     if [ $hostname_num == 1 ];then
         ZK_LISTS="${hostname}:2181"
@@ -83,13 +91,23 @@ echo ""  | tee -a $LOG_FILE
 echo "**********************************************" | tee -a $LOG_FILE
 
 ## 配置regionservers文件 caodabao
-num=$(sed -n '$=' ${CONF_DIR}/hostnamelists.properties)
-for (( i=2; i<=${num}; i++ ))
+#num=$(sed -n '$=' ${CONF_DIR}/hostnamelists.properties)
+#for (( i=2; i<=${num}; i++ ))
+#do
+#    hostname=$(sed -n "${i}p" ${CONF_DIR}/hostnamelists.properties)
+#    echo $hostname >> ${HBASE_HOME}/conf/regionservers
+#done
+#echo "设置regionservers done"  | tee -a $LOG_FILE
+
+## 配置regionservers文件（马燊偲）
+## Hbase的从节点
+HBASE_HREGION_ARRY=(${HBASE_HREGIONSERVER//;/ })
+for hostname in ${HBASE_HREGION_ARRY[@]}
 do
-    hostname=$(sed -n "${i}p" ${CONF_DIR}/hostnamelists.properties)
-    echo $hostname >> ${HBASE_HOME}/conf/regionservers
+	echo $hostname >> ${HBASE_HOME}/conf/regionservers
 done
-echo "设置regionservers done"  | tee -a $LOG_FIL
+echo "设置regionservers done"  | tee -a $LOG_FILE
+
 
 ## 设置hbase-site.xml
 echo ""  | tee -a $LOG_FILE
@@ -114,12 +132,28 @@ else
     echo "hadoop 没有安装正确，请检查hadoop 的安装配置。"  | tee  -a  $LOG_FILE
 fi
 
+## 将HBase的UI地址写到指定文件中
+echo ""  | tee -a $LOG_FILE
+echo "**********************************************" | tee -a $LOG_FILE
+echo "准备将hbase的UI地址写到指定文件中............"    | tee -a $LOG_FILE
+HBaseWebUI_Dir=$(grep WebUI_Dir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+HMASTER_IP=$(cat /etc/hosts|grep "$HBASE_HMASTER" | awk '{print $1}')
+HBase_UI="http://${HMASTER_IP}:60010"
+mkdir -p ${HBaseWebUI_Dir}
+grep -q "HBaseUI_Address=" ${HBaseWebUI_Dir}/WebUI_Address
+if [ "$?" -eq "0" ]  ;then
+    sed -i "s#^HBaseUI_Address=.*#HBaseUI_Address=${HBase_UI}#g" ${HBaseWebUI_Dir}/WebUI_Address
+else
+    echo "##HBase_WebUI" >> ${HBaseWebUI_Dir}/WebUI_Address
+    echo "HBaseUI_Address=${HBase_UI}" >> ${HBaseWebUI_Dir}/WebUI_Address
+fi
+
 
 ## 分发hbase 配置文件。
 echo ""  | tee -a $LOG_FILE
 echo "**********************************************" | tee -a $LOG_FILE
 echo "文件分发中，please waiting....."  | tee -a $LOG_FILE
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+for hostname in ${HBASE_HOSTNAME_ARRY[@]};do
     ssh $hostname "mkdir   -p ${HBASE_INSTALL_HOME}"
     rsync -rvl ${HBASE_HOME} root@${hostname}:${HBASE_INSTALL_HOME}  > /dev/null
     ssh $hostname "chmod -R 755 ${HBASE_HOME}"

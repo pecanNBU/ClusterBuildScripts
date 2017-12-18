@@ -6,10 +6,8 @@
 ##              实现自动化的脚本
 ## Version:     1.0
 ## Author:      lidiliang
-## Created:     2017-10-23
+## Created:     2017-10-23 caodabao
 ################################################################################
-
-set -x
 
 cd `dirname $0`
 ## 脚本所在目录
@@ -26,7 +24,7 @@ LOG_FILE=${LOG_DIR}/hadoopInstall.log
 ##  hadoop 安装包目录
 HADOOP_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## HADOOP_INSTALL_HOME hadoop 安装目录
 HADOOP_INSTALL_HOME=${INSTALL_HOME}/Hadoop
 ## HADOOP_HOME  hadoop 根目录
@@ -34,32 +32,31 @@ HADOOP_HOME=${HADOOP_INSTALL_HOME}/hadoop
 ## JAVA_HOME
 JAVA_HOME=${INSTALL_HOME}/JDK/jdk
 
-
-
 mkdir -p ${HADOOP_HOME}
 
 ZK_LISTS=""
-MASTER1=""
-MASTER2=""
 HADOOP_TMP_DIR=$HADOOP_HOME/tmp
 DK_SLAVES=""
 DFS_JOURNALNODE_EDITS_DIR=${HADOOP_HOME}/dfs_journalnode_edits_dir
 
-hostname_num=0
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
-    let hostname_num++
-    if [ $hostname_num == 1 ];then
-        MASTER1=${hostname}
-        ZK_LISTS="${hostname}:2181"
-        DK_SLAVES="${hostname}:8485"
-    else
-        ZK_LISTS="${hostname}:2181,${ZK_LISTS}"
-        DK_SLAVES="${hostname}:8485;${DK_SLAVES}"
-    fi
-    if [ $hostname_num == 2 ];then
-        MASTER2=${hostname}
-    fi
+## 获取ZK节点
+ZK_HOSTS=$(grep Zookeeper_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+zkhost_arr=(${ZK_HOSTS//;/ })    
+for zk_host in ${zkhost_arr[@]}
+do
+    ZK_LISTS="${zk_host}:2181,${ZK_LISTS}"
+    DK_SLAVES="${zk_host}:8485;${DK_SLAVES}"
 done
+
+##获取hadoop主备节点
+Hadoop_Masters=$(grep Hadoop_NameNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+namenode_arr=(${Hadoop_Masters//;/ }) 
+MASTER1=${namenode_arr[0]}
+MASTER2=${namenode_arr[1]}
+
+##获取数据存储节点节点
+Hadoop_Data=$(grep Hadoop_DataNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+datanode_arr=(${Hadoop_Data//;/ })
 
 #####################################################################
 # 函数名: compression_the_tar
@@ -108,12 +105,10 @@ function config_jdk_and_slaves()
     else
         echo "配置jdk路径成功." | tee -a $LOG_FILE
     fi
-    ##修改slaves文件
-    num=$(sed -n '$=' ${CONF_DIR}/hostnamelists.properties)
-    for (( i=2; i<=${num}; i++ ))
+    echo ""  >  ${HADOOP_SOURCE_DIR}/hadoop/etc/hadoop/slaves
+    for data_host in ${datanode_arr[@]}
     do
-        hostname=$(sed -n "${i}p" ${CONF_DIR}/hostnamelists.properties)
-        echo $hostname >> ${HADOOP_SOURCE_DIR}/hadoop/etc/hadoop/slaves
+        echo ${data_host} >> ${HADOOP_SOURCE_DIR}/hadoop/etc/hadoop/slaves
     done
     cd -
 }
@@ -194,15 +189,43 @@ function xync_hadoop_config()
     echo ""  | tee -a $LOG_FILE
     echo "**********************************************" | tee -a $LOG_FILE
     echo "hadoop 配置文件分发中，please waiting......"    | tee -a $LOG_FILE
-    for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
-        ssh root@${hostname}  "rm -rf ${HADOOP_HOME}"  
-        rsync -rvl ${HADOOP_SOURCE_DIR}/hadoop   root@${hostname}:${HADOOP_INSTALL_HOME}  >/dev/null
-        ssh root@${hostname}  "chmod -R 755   ${HADOOP_HOME}"
+    CLUSTER_HOST=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+    host_arr=(${CLUSTER_HOST//;/ })    
+    for host_name in ${host_arr[@]}
+    do
+        ssh root@$host_name  "rm -rf ${HADOOP_HOME}"  
+        rsync -rvl ${HADOOP_SOURCE_DIR}/hadoop   root@${host_name}:${HADOOP_INSTALL_HOME}  >/dev/null
+        ssh root@$host_name  "chmod -R 755   ${HADOOP_HOME}"
     done 
     rm -rf  ${HADOOP_SOURCE_DIR}/hadoop
     echo “分发haoop 安装配置done...”  | tee -a $LOG_FILE  
 }
 
+#####################################################################
+# 函数名: writeUI_file
+# 描述: 将hadoop的UI地址写到指定文件中
+# 参数: N/A
+# 返回值: N/A
+# 其他: N/A
+#####################################################################
+function writeUI_file()
+{
+    echo ""  | tee -a $LOG_FILE
+    echo "**********************************************" | tee -a $LOG_FILE
+    echo "准备将hadoop的UI地址写到指定文件中............"    | tee -a $LOG_FILE
+    HadoopWebUI_Dir=$(grep WebUI_Dir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+    HadoopWebUI_File=${HadoopWebUI_Dir}/WebUI_Address
+    MASTER_IP=$(cat /etc/hosts|grep "$MASTER1" | awk '{print $1}')
+    Hadoop_UI="http://${MASTER_IP}:50070"
+    mkdir -p ${HadoopWebUI_Dir}
+    grep -q "HadoopUI_Address=" ${HadoopWebUI_Dir}/WebUI_Address
+    if [ "$?" -eq "0" ]  ;then
+        sed -i "s#^HadoopUI_Address=.*#HadoopUI_Address=${Hadoop_UI}#g" ${HadoopWebUI_Dir}/WebUI_Address
+    else
+        echo "##Hadoop_WebUI" >> ${HadoopWebUI_Dir}/WebUI_Address
+        echo "HadoopUI_Address=${Hadoop_UI}" >> ${HadoopWebUI_Dir}/WebUI_Address
+    fi 
+}
 
 #####################################################################
 # 函数名: main
@@ -217,7 +240,8 @@ function main()
     config_jdk_and_slaves
     config_core_site
     config_hdfs_site
-    config_yarn_site  
+    config_yarn_site 
+    writeUI_file	
     xync_hadoop_config 
 }
 

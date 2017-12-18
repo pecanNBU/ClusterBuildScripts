@@ -9,7 +9,6 @@
 ## Created:       2017-11-10
 ################################################################################
 
-#set -x
 
 cd `dirname $0`
 ## 脚本所在目录
@@ -26,14 +25,19 @@ LOG_FILE=${LOG_DIR}/rocketmqInstall.log
 ## rocketmq 安装包目录
 ROCKETMQ_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## ROCKETMQ_INSTALL_HOME rocketmq 安装目录
 ROCKETMQ_INSTALL_HOME=${INSTALL_HOME}/RocketMQ
 ## ROCKETMQ_HOME  rocketmq 根目录
 ROCKETMQ_HOME=${INSTALL_HOME}/RocketMQ/rocketmq
 ## NameServer 节点IP
-NameServer_IP=$(sed -n '2p' ${CONF_DIR}/server_ip.properties)
+NameServer_Host=$(grep RocketMQ_Namesrv ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+Broker_Hosts=$(grep RocketMQ_Broker ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+Broker_Hostarr=(${Broker_Hosts//;/ }) 
 
+NameServer_IP=$(cat /etc/hosts|grep "$NameServer_Host" | awk '{print $1}')
+
+Host_Arr=(${Broker_Hostarr[*]} ${NameServer_Host})
 
 mkdir -p ${ROCKETMQ_INSTALL_HOME}
 mkdir -p ${LOG_DIR} 
@@ -48,13 +52,12 @@ echo “解压rocketmq zip 包中，请稍候.......”  | tee -a $LOG_FILE
 	unzip ${ROCKETMQ_SOURCE_DIR}/rocketmq.zip  -d ${ROCKETMQ_SOURCE_DIR} > /dev/null
 if [ $? == 0 ];then
     echo "解压缩rocketmq 安装包成功......"  | tee -a $LOG_FILE
-	mv ${ROCKETMQ_SOURCE_DIR}/rocketmq-all-4.1.0-incubating ${ROCKETMQ_SOURCE_DIR}/rocketmq
 else
     echo “解压rocketmq 安装包失败。请检查安装包是否损坏，或者重新安装.”  | tee -a $LOG_FILE
 	exit 1
 fi
 
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${Host_Arr[@]}
 do
     echo ""  | tee  -a  $LOG_FILE
     echo "************************************************"
@@ -62,10 +65,29 @@ do
     ssh root@$insName "mkdir -p  ${ROCKETMQ_INSTALL_HOME}"    
     echo "rocketmq 分发中,请稍候......"  | tee -a $LOG_FILE
     rsync -rvl $ROCKETMQ_SOURCE_DIR/rocketmq $insName:${ROCKETMQ_INSTALL_HOME}   > /dev/null
-    ssh root@${insName} "chmod -R 755 ${ROCKETMQ_HOME}"  
-    ssh root@${insName}  "echo '#ROCKETMQ_HOME'>>/etc/profile ;echo export ROCKETMQ_HOME=$ROCKETMQ_HOME >> /etc/profile"
-    ssh root@${insName} 'echo export PATH=\$ROCKETMQ_HOME/bin:\$PATH  >> /etc/profile; echo "">> /etc/profile' 
-    ssh root@${insName} "echo export NAMESRV_ADDR="${NameServer_IP}:9876"  >> /etc/profile; echo "">> /etc/profile"
+
+    # 判断是否存在export NAMESRV_ADDR=172.18.18.108:9876这一行，若存在则替换，若不存在则追加
+    namesrv_exists=$(ssh root@${insName} 'grep "export NAMESRV_ADDR=" /etc/profile')
+    if [ "${namesrv_exists}" != "" ];then
+        ssh root@${insName} "sed -i 's#^export NAMESRV_ADDR=.*#export NAMESRV_ADDR="${NameServer_IP}:9876"#g' /etc/profile"
+    else
+        ssh root@${insName} "echo export NAMESRV_ADDR="${NameServer_IP}:9876"  >> /etc/profile; echo "">> /etc/profile"		
+    fi
 done
+rm -rf ${ROCKETMQ_SOURCE_DIR}/rocketmq
+## 将RocketMQ的UI地址写到指定文件中
+echo ""  | tee -a $LOG_FILE
+echo "**********************************************" | tee -a $LOG_FILE
+echo "准备将RocketMQ的UI地址写到指定文件中............"    | tee -a $LOG_FILE
+RocketMQWebUI_Dir=$(grep WebUI_Dir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+RocketMQ_UI="http://${NameServer_IP}:8083"
+mkdir -p ${RocketMQWebUI_Dir}
+grep -q "RocketMQUI_Address=" ${RocketMQWebUI_Dir}/WebUI_Address
+if [ "$?" -eq "0" ]  ;then
+    sed -i "s#^RocketMQUI_Add0ress=.*#RocketMQUI_Address=${RocketMQ_UI}#g" ${RocketMQWebUI_Dir}/WebUI_Address
+else
+    echo "##RocketMQ_WebUI" >> ${RocketMQWebUI_Dir}/WebUI_Address
+    echo "RocketMQUI_Address=${RocketMQ_UI}" >> ${RocketMQWebUI_Dir}/WebUI_Address
+fi
 
 set +x	

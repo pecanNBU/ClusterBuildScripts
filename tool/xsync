@@ -2,53 +2,63 @@
 ################################################################################
 ## Copyright:   HZGOSUN Tech. Co, BigData
 ## Filename:    xsync 
-## Description: 一个同步工具，只同步有差异的文件,【BUG 绝对路径】
+## Description: 一个同步工具，只同步有差异的文件，入参可以为文件名/相对路径/绝对路径
 ## Version:     1.0
 ## Author:      lidiliang
+## Editor:      mashencai
 ## Created:     2017-11-25
 ################################################################################
 
 #set -x
 
-#---------------------------------------------------------------------#
-#                              定义变量                               #
-#---------------------------------------------------------------------#
-cd `dirname $0`
 ## 脚本所在目录
-export BIN_DIR=`pwd`
-cd ..
+cd `dirname $0`
 ## 安装包根目录
-export ROOT_HOME=`pwd`
+ROOT_HOME=`cd ..;pwd`
 ## 配置文件目录
-export CONF_DIR=${ROOT_HOME}/conf
-## 安装日记目录
-export LOG_DIR=${ROOT_HOME}/logs
-## 日记文件
-export LOG_FILE=${LOG_DIR}/xcall.log
-## USER
+CONF_DIR=${ROOT_HOME}/conf
+
+## 集群所有节点主机名，放入数组中
+CLUSTER_HOSTNAME_LISTS=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+CLUSTER_HOSTNAME_ARRY=(${CLUSTER_HOSTNAME_LISTS//;/ })
+
+## USER whoami查看当前有效用户名
 export USER=$(whoami)
 
+# $#:表示返回所有脚本参数的个数。
+# 若脚本的入参不为1，则输出该脚本的用法
 pcount=$#
-if(($pcount<1)) ; then
-  echo "usage:  ./xsync [file|path in this node, 绝对路径] such as : ./xsync /etc/hosts"
+if(($pcount!=1)) ; then
+  echo "usage:  ./xsync [file|path in this node, 相对路径] such as : ./xsync /etc/hosts"
   exit 0
 fi
 
-## FILE or PATH
-export FILE=$1
-export BASE_DIR=$(cd `dirname ${FILE}`;pwd)
+## INPUT_PARAMETERS 入参，可以为文件名/相对路径/绝对路径
+export INPUT_PARAMETERS=$1
+# 获取给定路径的目录部分，如果给定的参数本身为一个目录，那就得到当前目前的上一层目录。
+# 如果给定的参数为文件，得到该文件的路径
+export PARAMETERS_DIR=$(cd `dirname ${INPUT_PARAMETERS}`;pwd)
 
-#pwd
+# 传入的参数可能为文件或目录
+# 无论是哪一种，都需要获取到给定路径的目录部分后，拼接上该文件的文件名or该目录的最后一级目录
+#「##」号截取，删除左边字符，保留右边字符。
+#「##*/」表示从左边开始删除最后（最右边）一个 / 号及左边的所有字符
+# 若输入的为文件，截取到它的文件名，例如/etc/profile，截取出profile
+# 若输入的为目录，截取出它的最后一级目录，例如/opt/hzgc/conf，截取出conf
+FILE_OR_LASTPATH=${INPUT_PARAMETERS##*/}
+export COMPLETE_PATH=${PARAMETERS_DIR}"/"${FILE_OR_LASTPATH}
 
+# 函数：将文件/路径分发到不同节点
 sync_the_file_to_every_nodes(){
-    for host in $(cat ${CONF_DIR}/hostnamelists.properties);do
-        echo  ""
+    for host in ${CLUSTER_HOSTNAME_ARRY[@]};do
+        echo ""
         echo "---------------------------------------------------------"
         echo "$(date "+%Y-%m-%d  %H:%M:%S"), in ${host} the jps show as bellow..."
-        ssh ${USER}@${host} "mkdir -p ${BASE_DIR}"
-        cd  ${BASE_DIR}
-        rsync -rvl   ${FILE} ${USER}@${host}:${BASE_DIR}   
-done
+		# ssh到每个节点，创建该节点上该文件的所在路径
+		ssh ${USER}@${host} "mkdir -p ${PARAMETERS_DIR}"
+		cd  ${PARAMETERS_DIR}
+		rsync -rvl ${COMPLETE_PATH} ${USER}@${host}:${PARAMETERS_DIR}
+	done
 }
 
 sync_the_file_to_every_nodes

@@ -26,10 +26,10 @@ LOG_FILE=${LOG_DIR}/scalaInstall.log
 ##  scala 安装包目录
 SCALA_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## SCALA_INSTALL_HOME scala 安装目录
 SCALA_INSTALL_HOME=${INSTALL_HOME}/Scala
-## JAVA_HOME  jdk 根目录
+## Scala_HOME  scala根目录
 SCALA_HOME=${INSTALL_HOME}/Scala/scala
 
 #mkdir -p ${SCALA_INSTALL_HOME}
@@ -53,19 +53,20 @@ else
     exit 1
 fi
 
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+## 获取SCALA分发节点
+Scala_Hosts=$(grep Scala_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+scalahost_arr=(${Scala_Hosts//;/ })    
+for scala_host in ${scalahost_arr[@]}
 do
     echo ""  | tee  -a  $LOG_FILE
     echo "************************************************"
-    echo "准备将Scala分发到节点$insName："  | tee -a $LOG_FILE
-    ssh root@$insName "mkdir -p  ${SCALA_INSTALL_HOME}"
+    echo "准备将Scala分发到节点$scala_host："  | tee -a $LOG_FILE
+    ssh root@$scala_host "mkdir -p  ${SCALA_INSTALL_HOME}"
     echo "scala 分发中,请稍候......"  | tee -a $LOG_FILE
-    rsync -rvl $SCALA_SOURCE_DIR/scala $insName:${SCALA_INSTALL_HOME}   > /dev/null
-    ssh root@${insName} "chmod -R 755 ${SCALA_HOME}"
-    ssh root@${insName}  "echo '#SCALA_HOME'>>/etc/profile ;echo export SCALA_HOME=$SCALA_HOME >> /etc/profile"
-    ssh root@${insName} 'echo export PATH=\$SCALA_HOME/bin:\$PATH  >> /etc/profile; echo "">> /etc/profile'
+    rsync -rvl $SCALA_SOURCE_DIR/scala $scala_host:${SCALA_INSTALL_HOME}   > /dev/null
+    ssh root@${scala_host} "chmod -R 755 ${SCALA_HOME}"
     echo "最终的scala 版本如下:"    | tee -a $LOG_FILE
-    ssh root@${insName}  'source /etc/profile; scala -version'     | tee -a $LOG_FILE
+    ssh root@${scala_host}  "source /etc/profile; ${SCALA_HOME}/bin/scala -version"     | tee -a $LOG_FILE
 done
 
 set +x

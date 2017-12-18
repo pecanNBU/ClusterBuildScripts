@@ -23,10 +23,10 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/thriftServerStart.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
-## SPARK_INSTALL_HOME kafka 安装目录
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+## SPARK_INSTALL_HOME spark 安装目录
 SPARK_INSTALL_HOME=${INSTALL_HOME}/Spark
-## SPARK_HOME  kafka 根目录
+## SPARK_HOME  spark 根目录
 SPARK_HOME=${INSTALL_HOME}/Spark/spark
 
 echo "It's running the  thriftserver, it calls $SPARK_HOME/sbin/start-thriftserver.sh"

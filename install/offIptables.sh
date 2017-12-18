@@ -17,6 +17,7 @@ BIN_DIR=`pwd`
 cd ..
 ## 安装根目录
 ROOT_HOME=`pwd`
+
 ## conf 配置文件目录
 CONF_DIR=${ROOT_HOME}/conf
 ## 安装日记目录
@@ -24,13 +25,17 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 关闭防火墙日记 
 LOG_FILE=${LOG_DIR}/offIpTable.log
 
+## 集群所有节点主机名，放入数组中
+CLUSTER_HOSTNAME_LISTS=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+CLUSTER_HOSTNAME_ARRY=(${CLUSTER_HOSTNAME_LISTS//;/ })
+
 mkdir -p  ${LOG_DIR}
 
 echo ""  | tee  -a  $LOG_FILE
 echo ""  | tee  -a  $LOG_FILE
 echo "==================================================="  | tee -a $LOG_FILE
 echo "$(date "+%Y-%m-%d  %H:%M:%S")"                       | tee  -a  $LOG_FILE
-for name in $(cat ${CONF_DIR}/hostnamelists.properties)
+for name in ${CLUSTER_HOSTNAME_ARRY[@]}
 do
     echo ""  | tee  -a  $LOG_FILE
     echo "**************************************************"  | tee  -a  $LOG_FILE
