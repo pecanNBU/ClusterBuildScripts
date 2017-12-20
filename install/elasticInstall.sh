@@ -97,7 +97,8 @@ function config_yml_hostnamelist()
 	done
 	tmp=${tmp%?}
 
-	sed -i "s#host_name_list#${tmp}#g" ${ELASTIC_SOURCE_DIR}/elastic/config/elasticsearch.yml
+	#替换discovery.zen.ping.unicast.hosts字段的值
+    sed -i "s#^discovery.zen.ping.unicast.hosts:.*#discovery.zen.ping.unicast.hosts: [${tmp}]#g" ${ELASTIC_SOURCE_DIR}/elastic/config/elasticsearch.yml
 
 	echo "修改discovery.zen.ping.unicast.hosts:[${tmp}]成功"  | tee -a $LOG_FILE
 	echo ""  | tee -a $LOG_FILE
@@ -131,7 +132,7 @@ function rsync_file(){
 #####################################################################
 # 函数名: config_yml_hostandIP
 # 描述: 在每个节点上配置安装目录elasticsearch.yml中的:
-# 		node.name: host_name
+# 		node.name: 对应节点的主机名
 # 		network.host：对应节点的IP
 # 参数: N/A
 # 返回值: N/A
@@ -140,34 +141,17 @@ function rsync_file(){
 function config_yml_hostandIP(){
 	echo ""  | tee -a $LOG_FILE
 	echo "**********************************************" | tee -a $LOG_FILE
-	echo "每个节点上配置elasticsearch.yml中的node.name........"  | tee -a $LOG_FILE
+	echo "每个节点上配置elasticsearch.yml中的node.name和network.host........"  | tee -a $LOG_FILE
 	for hostname in ${ES_HOSTNAME_ARRY[@]};do
 		
-		## 配置elasticsearch.yml中的node.name: host_name改为当前节点的主机名
-		ssh root@${hostname} "sed -i 's#host_name#${hostname}#g' ${ELASTIC_HOME}/config/elasticsearch.yml"
+		## 配置elasticsearch.yml中的node.name为当前节点的主机名
+		ssh root@${hostname} "sed -i 's#^node.name:.*#node.name: ${hostname}#g' ${ELASTIC_HOME}/config/elasticsearch.yml"
 		echo "修改node.name:${hostname}成功"  | tee -a $LOG_FILE
 		
-		###################################################################
-		## 创建ELASTIC的临时存放目录（获取节点IP的脚本getIp.sh和存储elasticsearch.yml安装目录路径的文件espath.sh）
-		## 按照该目录分发获取本机ip地址的脚本
-		## 修改拷过去的文件权限为可执行
-		## 配置elasticsearch.yml中的network.host: ip_adress
-		###################################################################
-		ssh root@${hostname}  "mkdir -p ${BIN_DIR}" 
-		
-		## 创建临时文件夹
-		ssh root@${hostname}  "mkdir -p /home/hzgc/bigdata_hzgc/install/tmp" 
-		## 把 获取节点IP的脚本语句 保存到一个临时文件夹中
-		ssh root@${hostname} "echo \`ifconfig eth0 | grep \"inet addr\" | awk '{ print \$2}' | awk -F: '{print \$2}'\` > /home/hzgc/bigdata_hzgc/install/tmp/getIp.sh"
-		
-		## 把 elasticsearch.yml文件的相对目录路径 保存到一个临时文件夹中
-		ssh root@${hostname} "echo "${ELASTIC_HOME}/config/elasticsearch.yml" > /home/hzgc/bigdata_hzgc/install/tmp/espath.sh"
-		
-		## 获取该临时文件中存储的相对目录地址，并配置elasticsearch.yml中的network.host: ip_adress
-		ssh root@${hostname} 'espath=$(sed -n '1p' /home/hzgc/bigdata_hzgc/install/tmp/espath.sh);arg=$(sed -n '1p' /home/hzgc/bigdata_hzgc/install/tmp/getIp.sh);sed -i "s#ip_adress#${arg}#g" ${espath}'
-
-		## 删除该临时文件夹
-		rm -rf /home/hzgc/bigdata_hzgc/install/tmp
+		## 获取每个节点的IP
+		ip=$(cat /etc/hosts|grep "$hostname" | awk '{print $1}')
+		## 配置elasticsearch.yml中的network.host为当前节点的IP
+		ssh root@${hostname} "sed -i 's#^network.host:.*#network.host: ${ip}#g' ${ELASTIC_HOME}/config/elasticsearch.yml"
 		
 		echo "修改${hostname}的network.host成功"  | tee -a $LOG_FILE
 	done
