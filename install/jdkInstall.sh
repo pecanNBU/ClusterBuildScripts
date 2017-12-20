@@ -89,6 +89,7 @@ do
         ssh root@${jdk_host} "echo '#JAVA_HOME'>>/etc/profile ;echo export JAVA_HOME=$JAVA_HOME >> /etc/profile"
         ssh root@${jdk_host} 'echo export PATH=\$JAVA_HOME/bin:\$PATH  >> /etc/profile; echo "">> /etc/profile'
     fi	
+    ssh root@${jdk_host} "source /etc/profile"
 done
 
 set +x	

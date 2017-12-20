@@ -118,14 +118,14 @@ echo "**********************************************" | tee -a $LOG_FILE
 echo "准备将hive的UI地址写到指定文件中............"    | tee -a $LOG_FILE
 HiveWebUI_Dir=$(grep WebUI_Dir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 Host_IP=$(cat /etc/hosts|grep "$HOST1" | awk '{print $1}')
-HBase_UI="http://${Host_IP}:10002"
+Hive_UI="http://${Host_IP}:10002"
 mkdir -p ${HiveWebUI_Dir}
-grep -q "HiveUI_Address=" ${HBaseWebUI_Dir}/WebUI_Address
+grep -q "HiveUI_Address=" ${HiveWebUI_Dir}/WebUI_Address
 if [ "$?" -eq "0" ]  ;then
-    sed -i "s#^HiveUI_Address=.*#HiveUI_Address=${HBase_UI}#g" ${HBaseWebUI_Dir}/WebUI_Address
+    sed -i "s#^HiveUI_Address=.*#HiveUI_Address=${Hive_UI}#g" ${HiveWebUI_Dir}/WebUI_Address
 else
-    echo "##Hive_WebUI" >> ${HBaseWebUI_Dir}/WebUI_Address
-    echo "HiveUI_Address=${HBase_UI}" >> ${HBaseWebUI_Dir}/WebUI_Address
+    echo "##Hive_WebUI" >> ${HiveWebUI_Dir}/WebUI_Address
+    echo "HiveUI_Address=${Hive_UI}" >> ${HiveWebUI_Dir}/WebUI_Address
 fi
 
 ## 修改hiveserver2 UI地址
