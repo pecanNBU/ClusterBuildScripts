@@ -6,6 +6,7 @@
 ## Version:           1.0
 ## zookeeper.version: 3.5.1-alpha
 ## Author:            qiaokaifeng
+## Editor:            mashencai
 ## Created:           2017-10-23
 ################################################################################
 
@@ -26,7 +27,11 @@ LOG_FILE=${LOG_DIR}/zkInstall.log
 ## ZOOKEEPER 安装包目录
 ZOOKEEPER_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+## zk的安装节点，放入数组中
+ZK_HOSTNAME_LISTS=$(grep Zookeeper_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+ZK_HOSTNAME_ARRY=(${ZK_HOSTNAME_LISTS//;/ })
+
 ## ZOOKEEPER_INSTALL_HOME zookeeper 安装目录
 ZOOKEEPER_INSTALL_HOME=${INSTALL_HOME}/Zookeeper
 ## ZOOKEEPER_HOME  zookeeper 根目录
@@ -58,7 +63,7 @@ fi
 i=0
 
 echo "" | tee -a  $LOG_FILE
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${ZK_HOSTNAME_ARRY[@]}
 do
     echo "***********************************************************"  | tee -a $LOG_FILE
     echo "创建${insName}的临时安装目录${insName} "  | tee -a $LOG_FILE
@@ -74,7 +79,7 @@ done
 
 echo "" | tee -a  $LOG_FILE
 ## 分发zoo.cfg，分布式所需要的zoo.cfg
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${ZK_HOSTNAME_ARRY[@]}
 do
     echo "***************************************************"  | tee -a $LOG_FILE
     echo "临时分发配置文件到 {$insName}目录...... "  | tee -a $LOG_FILE
@@ -85,7 +90,7 @@ done
 
 echo "" | tee -a  $LOG_FILE
 ## 分发zookeeper到每个节点
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${ZK_HOSTNAME_ARRY[@]}
 do
     echo "**********************************************" | tee -a $LOG_FILE
     echo "准备将zookeeper分发到节点$insName："  | tee -a $LOG_FILE
@@ -102,7 +107,7 @@ done
 
 echo "" | tee -a  $LOG_FILE
 ## 删除临时目录
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${ZK_HOSTNAME_ARRY[@]}
 do
     echo "**********************************************" | tee -a $LOG_FILE
     echo "删除临时目录${insName}...... "  | tee -a $LOG_FILE

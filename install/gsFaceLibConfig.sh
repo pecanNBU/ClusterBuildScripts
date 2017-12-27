@@ -29,6 +29,12 @@ CONF_DIR=${ROOT_HOME}/conf
 LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/gsFaceLib.log
+## gsFaceLib的安装节点，放入数组中
+GSFACELIB_HOSTNAME_LISTS=$(grep GsFaceLib_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+GSFACELIB_HOSTNAME_ARRY=(${GSFACELIB_HOSTNAME_LISTS//;/ })
+
+
+
 
 if [ ! -d $LOG_DIR ];then
     mkdir -p $LOG_DIR;
@@ -70,7 +76,7 @@ function compression_the_tar()
 #####################################################################
 function rsync_GsFaceLib(){
     echo "**********************************************" | tee -a $LOG_FILE
-    for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+    for hostname in ${GSFACELIB_HOSTNAME_ARRY[@]};do
         echo " GsFaceLib分发到${hostname}........"  | tee -a $LOG_FILE
         #rsync -rvl ${GSFACELIB_SOURCE_DIR}/GsFaceLib   root@${hostname}:/opt  >/dev/null
         scp -r ${GSFACELIB_SOURCE_DIR}/GsFaceLib   root@${hostname}:/opt  >/dev/null
@@ -91,10 +97,26 @@ function rsync_GsFaceLib(){
 function add_env(){
     echo "**********************************************" | tee -a $LOG_FILE
     echo "please waiting, 添加/opt/profile中的GsFaceLib环境变量 ........"  | tee -a $LOG_FILE
-    for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
-        ssh root@${hostname} 'grep "export LD_LIBRARY_PATH=/opt/GsFaceLib/face_libs" /etc/profile; if [ $? -eq 1 ]; then echo 'export LD_LIBRARY_PATH=/opt/GsFaceLib/face_libs' >> /etc/profile; echo "添加成功...";fi'
-        ssh root@${hostname} "source /etc/profile"
-    done
+	
+	##########原脚本
+    #for hostname in ${GSFACELIB_HOSTNAME_ARRY[@]};do
+    #    ssh root@${hostname} 'grep "export LD_LIBRARY_PATH=/opt/GsFaceLib/face_libs" /etc/profile; if [ $? -eq 1 ]; then echo 'export LD_LIBRARY_PATH=/opt/GsFaceLib/face_libs' >> /etc/profile; echo "添加成功...";fi'
+    #    ssh root@${hostname} "source /etc/profile"
+    #done
+	
+	##########新脚本
+	### 增加facelibs环境变量，若先前有配置，要先删除原来的（马燊偲）
+	### ssh到每个节点，查找etc/profile中是否存在facelibs系统变量行，若存在，则替换；若不存在，则追加。
+	LD_LIBRARY_PATH=/opt/GsFaceLib/face_libs
+	for hostname in ${GSFACELIB_HOSTNAME_ARRY[@]};do
+		facelibshome_exists=$(ssh root@${hostname} 'grep "export LD_LIBRARY_PATH=" /etc/profile')
+		# 存在"export LD_LIBRARY_PATH="这一行：则替换这一行
+		if [ "${facelibshome_exists}" != "" ];then
+			ssh root@${hostname} "sed -i 's#^export LD_LIBRARY_PATH=.*#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH#g' /etc/profile"
+		else
+			ssh root@${hostname} "echo '#LD_LIBRARY_PATH'>>/etc/profile ;echo export LD_LIBRARY_PATH=$LD_LIBRARY_PATH >> /etc/profile"
+		fi
+	done
 }
 #####################################################################
 # 函数名: remove_snini
@@ -106,7 +128,7 @@ function add_env(){
 function remove_snini(){
     echo "**********************************************" | tee -a $LOG_FILE
     echo "please waiting, 删除/opt/GsFaceLib下sn.ini文件 ........"  | tee -a $LOG_FILE
-    for hostname in $(cat ${CONF_DIR}/hostnamelists.properties);do
+    for hostname in ${GSFACELIB_HOSTNAME_ARRY[@]};do
         ssh root@${hostname} "rm -rf /opt/GsFaceLib/sn.ini"
     done
 }

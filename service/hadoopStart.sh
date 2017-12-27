@@ -23,7 +23,11 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/hadoopStart.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+Hadoop_Masters=$(grep Hadoop_NameNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+namenode_arr=(${Hadoop_Masters//;/ }) 
+MASTER1=${namenode_arr[0]}
+MASTER2=${namenode_arr[1]}
 
 echo -e '启动Hadoop'
 
@@ -40,14 +44,15 @@ ${INSTALL_HOME}/Hadoop/hadoop/sbin/start-yarn.sh
 	    echo -e 'yarn failed \n'
 	fi
 
-ssh root@$(sed -n '2p' ${CONF_DIR}/hostnamelists.properties) "${INSTALL_HOME}/Hadoop/hadoop/sbin/yarn-daemon.sh start resourcemanager"
+ssh root@$MASTER2 "${INSTALL_HOME}/Hadoop/hadoop/sbin/yarn-daemon.sh start resourcemanager"
 	if [ $? -eq 0 ];then
 	    echo -e 'ha yarn success \n'
 	else
 	    echo -e 'ha yarn failed \n'
 	fi
-
 # 验证Hadoop是否启动成功
+# 等待三秒后再验证RocketMq是否启动成功
 echo -e "********************验证Hadoop是否启动成功*********************"
-source /etc/profile
-xcall jps  
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'NameNode|NodeManager|DataNode|ResourceManager|JournalNode|DFSZKFailoverController|jps show as bellow'

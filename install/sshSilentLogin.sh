@@ -1,11 +1,12 @@
 #!/bin/bash
 ################################################################################
 ## Copyright:   HZGOSUN Tech. Co, BigData
-## Filename:    conf-no-password.sh
+## Filename:    sshSilentLogin.sh
 ## Description: 配置ssh 免密码登录
 ##              实现自动化的脚本
 ## Version:     1.0
 ## Author:      lidiliang
+## Editor:      mashencai（修改读取密码的路径）
 ## Created:     2017-11-25
 ################################################################################
 
@@ -27,10 +28,13 @@ export LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 export LOG_FILE=${LOG_DIR}/no_password.log
 ## 系统root 用密码
-export PASSWORD=123456
+export PASSWORD=$(grep SSH_Password ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## authorized_keys 内容所在文件
 export AUTHORIZED_KEYS=${BIN_DIR}/authorized_keys.log
 
+## 集群所有节点主机名，放入数组中
+CLUSTER_HOSTNAME_LISTS=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+CLUSTER_HOSTNAME_ARRY=(${CLUSTER_HOSTNAME_LISTS//;/ })
 
 #####################################################################
 # 函数名: ssh_keygen
@@ -135,7 +139,7 @@ EOF
 # 其他: N/A
 #####################################################################
 get_authorized_keys_log(){
-    for host in $(cat ${CONF_DIR}/hostnamelists.properties);do
+    for host in ${CLUSTER_HOSTNAME_ARRY[@]};do
         ssh_keygen ${host}
         get_id_rsa ${host}  | tee -a ${AUTHORIZED_KEYS}
     done
@@ -163,7 +167,7 @@ get_authorized_keys(){
 # 其他: N/A
 #####################################################################
 deliver_authorizedkesy_to_other_nodes(){
-    for host in $(cat ${CONF_DIR}/hostnamelists.properties);do
+    for host in ${CLUSTER_HOSTNAME_ARRY[@]};do
         deliver_authorizedkesy_to_other_node ${host}
     done
 }
@@ -179,7 +183,7 @@ deliver_authorizedkesy_to_other_nodes(){
 #####################################################################
 config_no_password(){
     i=0
-    for host in $(cat ${CONF_DIR}/hostnamelists.properties);do
+    for host in ${CLUSTER_HOSTNAME_ARRY[@]};do
         let i++
         echo  $i
         ssh_conf_first_yes ${host}

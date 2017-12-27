@@ -5,6 +5,7 @@
 ## Description: 启动zookeeper集群的脚本.
 ## Version:     1.0
 ## Author:      lidiliang
+## Editor:            mashencai
 ## Created:     2017-10-23
 ################################################################################
 
@@ -23,14 +24,18 @@ LOG_DIR=${ROOT_HOME}/logs
 ## 安装日记目录
 LOG_FILE=${LOG_DIR}/zkStart.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+## zk的安装节点，放入数组中
+ZK_HOSTNAME_LISTS=$(grep Zookeeper_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+ZK_HOSTNAME_ARRY=(${ZK_HOSTNAME_LISTS//;/ })
 
-for name in $(cat ${CONF_DIR}/hostnamelists.properties)
+for name in ${ZK_HOSTNAME_ARRY[@]}
 do
     ssh root@$name "source /etc/profile;${INSTALL_HOME}/Zookeeper/zookeeper/bin/zkServer.sh start"
 done
 
 # 验证ZK是否启动成功
 echo -e "********************验证ZK是否启动成功*********************"
-source /etc/profile
-xcall jps | grep QuorumPeerMain
+sleep 3s
+source $(grep Source_File ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+xcall jps | grep -E 'QuorumPeerMain|jps show as bellow'

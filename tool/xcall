@@ -27,6 +27,10 @@ export LOG_DIR=${ROOT_HOME}/logs
 ## 日记文件
 export LOG_FILE=${LOG_DIR}/xcall.log
 
+## 集群所有节点主机名，放入数组中
+CLUSTER_HOSTNAME_LISTS=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+CLUSTER_HOSTNAME_ARRY=(${CLUSTER_HOSTNAME_LISTS//;/ })
+
 pcount=$#
 if(($pcount<1)) ; then
   echo "usage:  ./xcall command,  such as : ./xcall jps"
@@ -34,7 +38,7 @@ if(($pcount<1)) ; then
 fi
 
 command_do_in_all_nodes(){
-    for host in $(cat ${CONF_DIR}/hostnamelists.properties);do
+    for host in ${CLUSTER_HOSTNAME_ARRY[@]};do
         echo  ""
         echo "---------------------------------------------------------"
         echo "$(date "+%Y-%m-%d  %H:%M:%S"), in ${host} doing  $@ show as bellow..."

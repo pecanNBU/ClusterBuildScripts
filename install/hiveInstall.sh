@@ -27,7 +27,12 @@ LOG_FILE=${LOG_DIR}/hiveInstall.log
 ## hive 安装包目录
 HIVE_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+## hive的安装节点，放入数组中
+HIVE_HOSTNAME_LISTS=$(grep Meta_ThriftServer ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+HIVE_HOSTNAME_ARRY=(${HIVE_HOSTNAME_LISTS//;/ })
+HOST1=${HIVE_HOSTNAME_ARRY[0]}
+
 ## HIVE_INSTALL_HOME hive 安装目录
 HIVE_INSTALL_HOME=${INSTALL_HOME}/Hive
 ## HIVE_HOME  hive 根目录
@@ -57,14 +62,16 @@ rm -rf  ${HIVE_INSTALL_HOME}
 mkdir -p ${HIVE_INSTALL_HOME}
 yes |cp -r ${HIVE_SOURCE_DIR}/hive  ${HIVE_INSTALL_HOME}
 chmod -R 755 ${HIVE_HOME}
-sed -i "s;127.0.0.1;$(sed -n '1p' ${CONF_DIR}/hostnamelists.properties);g" ${HIVE_HOME}/conf/hive-site.xml
+# 获取Mysql安装节点
+MYSQL_INSTALLNODE=$(grep Mysql_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+sed -i "s;127.0.0.1;${MYSQL_INSTALLNODE};g" ${HIVE_HOME}/conf/hive-site.xml
 sed -i "s;INSTALL_HOME;${INSTALL_HOME};g" ${HIVE_HOME}/conf/hive-env.sh
 
 
 ## 配置zookeeper、hive matestore集群地址（曹大报）
 hazk=""
 hith=""
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${HIVE_HOSTNAME_ARRY[@]}
 do
     hazk="${hazk}${insName}:2181,"
     hith="${hith}thrift://${insName}:9083,"
@@ -83,7 +90,7 @@ done
 ##
 ####################################################################
 tmp=""
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties)
+for hostname in ${HIVE_HOSTNAME_ARRY[@]}
 do
 	tmp="$tmp"${hostname}":2181,"  # 拼接字符串
 done
@@ -95,7 +102,7 @@ sed -i "s;hostnameportlist;${tmp};g"  ${HIVE_HOME}/bin/beeline
 echo ""  | tee -a $LOG_FILE
     echo "**********************************************" | tee -a $LOG_FILE
     echo "hive 配置文件分发中，please waiting......"    | tee -a $LOG_FILE
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties)
+for hostname in ${HIVE_HOSTNAME_ARRY[@]}
 do
     ssh root@${hostname}  "mkdir -p ${HIVE_INSTALL_HOME}"  
     rsync -rvl ${HIVE_HOME}   root@${hostname}:${HIVE_INSTALL_HOME}  >/dev/null
@@ -103,9 +110,26 @@ do
 done 
     echo “分发hive 安装配置done...”  | tee -a $LOG_FILE  
 	
-	
+
+
+## 将Hive的UI地址写到指定文件中
+echo ""  | tee -a $LOG_FILE
+echo "**********************************************" | tee -a $LOG_FILE
+echo "准备将hive的UI地址写到指定文件中............"    | tee -a $LOG_FILE
+HiveWebUI_Dir=$(grep WebUI_Dir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+Host_IP=$(cat /etc/hosts|grep "$HOST1" | awk '{print $1}')
+Hive_UI="http://${Host_IP}:10002"
+mkdir -p ${HiveWebUI_Dir}
+grep -q "HiveUI_Address=" ${HiveWebUI_Dir}/WebUI_Address
+if [ "$?" -eq "0" ]  ;then
+    sed -i "s#^HiveUI_Address=.*#HiveUI_Address=${Hive_UI}#g" ${HiveWebUI_Dir}/WebUI_Address
+else
+    echo "##Hive_WebUI" >> ${HiveWebUI_Dir}/WebUI_Address
+    echo "HiveUI_Address=${Hive_UI}" >> ${HiveWebUI_Dir}/WebUI_Address
+fi
+
 ## 修改hiveserver2 UI地址
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${HIVE_HOSTNAME_ARRY[@]}
 do
     echo ""  | tee  -a  $LOG_FILE
     echo ""  | tee  -a  $LOG_FILE
@@ -115,7 +139,7 @@ do
 	
 done
 ## 修改hiveserver2 UI地址（乔凯峰）
-for insName in $(cat ${CONF_DIR}/iplists.properties)
+for insName in ${HIVE_HOSTNAME_ARRY[@]}
 do
     echo ""  | tee  -a  $LOG_FILE
     echo ""  | tee  -a  $LOG_FILE
@@ -127,11 +151,8 @@ done
     echo "hive 文件分发完成，安装完成......"  | tee  -a  $LOG_FILE
 
 	
-## 初始化元数据（马燊偲）
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties)
-do
-	ssh root@${hostname} "${HIVE_HOME}/bin/schematool -initSchema -dbType mysql"
-done
+## 初始化元数据(曹大报)
+ssh root@${MYSQL_INSTALLNODE} "${HIVE_HOME}/bin/schematool -initSchema -dbType mysql"
 
 
 

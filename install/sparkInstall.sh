@@ -5,6 +5,7 @@
 ## Description:  安装 spark
 ## Version:      1.0
 ## Author:       qiaokaifeng
+## Editor:       mashencai
 ## Created:      2017-10-23
 ## Spark.Version:2.2.0
 ################################################################################
@@ -26,11 +27,19 @@ LOG_FILE=${LOG_DIR}/sparkInstall.log
 ## SPARK 安装包目录
 SPARK_SOURCE_DIR=${ROOT_HOME}/component/bigdata
 ## 最终安装的根目录，所有bigdata 相关的根目录
-INSTALL_HOME=$(sed -n '4p' ${CONF_DIR}/install_home.properties)
+INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+
 ## SPARK_INSTALL_HOME spark 安装目录
 SPARK_INSTALL_HOME=${INSTALL_HOME}/Spark
 ## SPARK_HOME  spark 根目录
 SPARK_HOME=${INSTALL_HOME}/Spark/spark
+
+## spark的安装节点，需要拼接，放入数组中
+SPARK_NAMENODE=$(grep Spark_NameNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+SPARK_SERVICENODE=$(grep Spark_ServiceNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+SPARK_HOSTNAME_LISTS=${SPARK_NAMENODE}";"${SPARK_SERVICENODE}
+SPARK_HOSTNAME_ARRY=(${SPARK_HOSTNAME_LISTS//;/ })
+
 
 if [ ! -d $LOG_DIR ];then
     mkdir -p $LOG_DIR;
@@ -63,13 +72,13 @@ fi
     cp -r ${SPARK_SOURCE_DIR}/spark ${SPARK_SOURCE_DIR}/tmp > /dev/null
 
 zkconf=''
-for zk in $(cat ${CONF_DIR}/hostnamelists.properties)
+for zk in ${SPARK_HOSTNAME_ARRY[@]}
 do
     zkconf="$zkconf$zk:2181,"
 done
     sed -i "s;zkconf;${zkconf%?};g"            ${SPARK_SOURCE_DIR}/tmp/spark/conf/spark-env.sh
 
-for ins in $(cat ${CONF_DIR}/hostnamelists.properties)
+for ins in ${SPARK_HOSTNAME_ARRY[@]}
 do
     echo "$ins" >>                             ${SPARK_SOURCE_DIR}/tmp/spark/conf/slaves
 done
@@ -81,7 +90,7 @@ done
 	
 ## 修改spark-beeline
 tmp=""
-for hostname in $(cat ${CONF_DIR}/hostnamelists.properties)
+for hostname in ${SPARK_HOSTNAME_ARRY[@]}
 do
 	tmp="$tmp"${hostname}":2181,"  # 拼接字符串
 done
@@ -89,7 +98,7 @@ tmp=${tmp%?}
 sed -i "s;portlist;${tmp};g"  ${SPARK_SOURCE_DIR}/tmp/spark/bin/spark-beeline
 
 ## 分发spark到每个节点
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${SPARK_HOSTNAME_ARRY[@]}
 do
     echo ""  | tee  -a  $LOG_FILE
     echo ""  | tee  -a  $LOG_FILE
@@ -105,13 +114,13 @@ done
     cp ${INSTALL_HOME}/Hive/hive/conf/hive-site.xml ${SPARK_HOME}/conf
     sed -i "s;10000;23040;g"  ${SPARK_HOME}/conf/hive-site.xml
 	sed -i "s;hiveserver2;thriftserver;g"  ${SPARK_HOME}/conf/hive-site.xml
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${SPARK_HOSTNAME_ARRY[@]}
 do	
     scp -r ${SPARK_HOME}/conf/hive-site.xml root@${insName}:${SPARK_HOME}/conf
 done
 
 #修改配置文件 historyServer  hostname
-for insName in $(cat ${CONF_DIR}/hostnamelists.properties)
+for insName in ${SPARK_HOSTNAME_ARRY[@]}
 do
     echo "准备修改spark ${insName} 的conf文件"
     ssh root@$insName "sed -i 's;historyserver;$insName;g' ${SPARK_HOME}/conf/spark-defaults.conf"
