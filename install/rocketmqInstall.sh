@@ -64,7 +64,8 @@ do
     echo "准备将ROCKETMQ分发到节点$insName："  | tee -a $LOG_FILE
     ssh root@$insName "mkdir -p  ${ROCKETMQ_INSTALL_HOME}"    
     echo "rocketmq 分发中,请稍候......"  | tee -a $LOG_FILE
-    rsync -rvl $ROCKETMQ_SOURCE_DIR/rocketmq $insName:${ROCKETMQ_INSTALL_HOME}   > /dev/null
+    ssh root@${insName} "rm -rf ${ROCKETMQ_HOME}/conf/2m-noslave/*.properties"
+    scp -r $ROCKETMQ_SOURCE_DIR/rocketmq $insName:${ROCKETMQ_INSTALL_HOME}   > /dev/null
 
     # 判断是否存在export NAMESRV_ADDR=172.18.18.108:9876这一行，若存在则替换，若不存在则追加
     namesrv_exists=$(ssh root@${insName} 'grep "export NAMESRV_ADDR=" /etc/profile')
@@ -75,6 +76,23 @@ do
     fi
 done
 rm -rf ${ROCKETMQ_SOURCE_DIR}/rocketmq
+
+##修改${ROCKETMQ_HOME}/conf/2m-noslave/目录下broker配置文件
+for hostname in ${Host_Arr[@]}
+do
+    echo "************************************************"
+    echo "准备修改$hostname节点下的broker配置文件："  | tee -a $LOG_FILE
+    Properties_Num=$(ssh root@$hostname "ls ${ROCKETMQ_HOME}/conf/2m-noslave | grep .properties | wc -l")
+    if [ $Properties_Num != 1 ];then
+        echo "$hostname节点下的broker配置文件数目不为1,请检视......"  | tee -a $LOG_FILE
+        exit 0
+    else
+        ssh root@$hostname "mv ${ROCKETMQ_HOME}/conf/2m-noslave/*.properties ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties" 
+        ssh root@$hostname "sed -i 's#^brokerName=.*#brokerName="broker-$hostname"#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+    fi
+    echo "修改$hostname节点下的broker配置文件完成"  | tee -a $LOG_FILE
+done
+
 ## 将RocketMQ的UI地址写到指定文件中
 echo ""  | tee -a $LOG_FILE
 echo "**********************************************" | tee -a $LOG_FILE
