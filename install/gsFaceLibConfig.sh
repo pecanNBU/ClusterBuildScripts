@@ -107,6 +107,7 @@ function add_env(){
 	##########新脚本
 	### 增加facelibs环境变量，若先前有配置，要先删除原来的（马燊偲）
 	### ssh到每个节点，查找etc/profile中是否存在facelibs系统变量行，若存在，则替换；若不存在，则追加。
+	LD_LIBRARY_PATH=/opt/GsFaceLib/face_libs
 	for hostname in ${GSFACELIB_HOSTNAME_ARRY[@]};do
 		facelibshome_exists=$(ssh root@${hostname} 'grep "export LD_LIBRARY_PATH=" /etc/profile')
 		# 存在"export LD_LIBRARY_PATH="这一行：则替换这一行
