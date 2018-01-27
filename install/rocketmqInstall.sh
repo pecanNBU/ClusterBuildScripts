@@ -30,6 +30,24 @@ INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '
 ROCKETMQ_INSTALL_HOME=${INSTALL_HOME}/RocketMQ
 ## ROCKETMQ_HOME  rocketmq 根目录
 ROCKETMQ_HOME=${INSTALL_HOME}/RocketMQ/rocketmq
+
+##RocketMQ存储路径
+ROCKETMQ_STORE=${ROCKETMQ_HOME}/store
+##RocketMQ commitLog 存储路径
+ROCKETMQ_COMMITLOG=${ROCKETMQ_STORE}/commitlog
+##消费队列存储路径存储路径
+ROCKETMQ_CONSUMEQUE=${ROCKETMQ_STORE}/consumequeue
+##消息索引存储路径
+ROCKETMQ_INDEX=${ROCKETMQ_STORE}/index
+##checkpoint 文件存储路径
+ROCKETMQ_CHECKPOINT=${ROCKETMQ_STORE}/checkpoint
+##abort 文件存储路径
+ROCKETMQ_ABORT=${ROCKETMQ_STORE}/abort
+
+##rocketMq 日志目录
+ROCKETMQ_LOG=$(grep Cluster_LOGSDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+
+
 ## NameServer 节点IP
 NameServer_Host=$(grep RocketMQ_Namesrv ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 Broker_Hosts=$(grep RocketMQ_Broker ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
@@ -41,7 +59,7 @@ Host_Arr=(${Broker_Hostarr[*]} ${NameServer_Host})
 
 mkdir -p ${ROCKETMQ_INSTALL_HOME}
 mkdir -p ${LOG_DIR} 
-
+mkdir -p ${ROCKETMQ_LOG}
 
 echo ""  | tee  -a  $LOG_FILE
 echo ""  | tee  -a  $LOG_FILE
@@ -89,6 +107,25 @@ do
     else
         ssh root@$hostname "mv ${ROCKETMQ_HOME}/conf/2m-noslave/*.properties ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties" 
         ssh root@$hostname "sed -i 's#^brokerName=.*#brokerName="broker-$hostname"#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        ssh root@$hostname "sed -i 's#^storePathRootDir=.*#storePathRootDir=${ROCKETMQ_STORE}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag1=$?
+        ssh root@$hostname "sed -i 's#^storePathCommitLog=.*#storePathCommitLog=${ROCKETMQ_COMMITLOG}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag2=$?
+        ssh root@$hostname "sed -i 's#^storePathConsumeQueue=.*#storePathConsumeQueue=${ROCKETMQ_CONSUMEQUE}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag3=$?
+        ssh root@$hostname "sed -i 's#^storePathIndex=.*#storePathIndex=${ROCKETMQ_INDEX}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag4=$?
+        ssh root@$hostname "sed -i 's#^storeCheckpoint=.*#storeCheckpoint=${ROCKETMQ_CHECKPOINT}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag5=$?
+        ssh root@$hostname "sed -i 's#^abortFile=.*#abortFile=${ROCKETMQ_ABORT}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag6=$?
+        ssh root@$hostname "sed -i 's#\${user.home}/logs#${ROCKETMQ_LOG}#g' ${ROCKETMQ_HOME}/conf/*.xml"
+        flag7=$?
+        if [[ ($flag1 == 0)  && ($flag2 == 0)  &&  ($flag3 == 0)  && ($flag4 == 0)  &&  ($flag5 == 0)  && ($flag6 == 0)  && ($flag7 == 0) ]];then
+            echo " 配置brokerproperties完成." | tee -a $LOG_FILE
+        else
+            echo "配置brokerproperties失败." | tee -a $LOG_FILE
+        fi
     fi
     echo "修改$hostname节点下的broker配置文件完成"  | tee -a $LOG_FILE
 done
