@@ -22,6 +22,8 @@ LOG_DIR=${ROOT_HOME}/logs
 LOG_FILE=${LOG_DIR}/hadoopFormat.log
 ## 最终安装的根目录，所有bigdata 相关的根目录
 INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+## Hadoop安装目录
+HADOOP_HOME=${INSTALL_HOME}/Hadoop/hadoop
 Hadoop_Masters=$(grep Hadoop_NameNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 namenode_arr=(${Hadoop_Masters//;/ }) 
 MASTER1=${namenode_arr[0]}
