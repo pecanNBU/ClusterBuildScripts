@@ -27,6 +27,8 @@ cd tool/
 YARN_UTIL_DIR=`pwd`
 ## 获取当前机器core数量
 CORES=$(cat /proc/cpuinfo| grep "physical id"| sort| uniq| wc -l)
+## 配置nodemanager 最大的核数
+YARN_NODEMANAGER_RESOURCE_CPU_VCORES=$(echo `echo "scale=1;$CORES*0.8"|bc`  | awk -F "." '{print $1}')
 ## 获取当前机器内存
 MEMORY=$(echo "$(free -h | grep "Mem" | awk '{print $2}')" | sed -r 's/[^0-9.]+//g')
 ## 获取当前机器上挂载的磁盘个数
@@ -139,6 +141,10 @@ function config_yarn_site_xml ()
 		else
 			echo "Not fount \"yarn.app.mapreduce.am.command-opts\"!"  |  tee -a $LOG_FILE
 		fi
+		
+		## 配置nodemanager可用的最大核数
+		sed -i "s#yarn_nodemanager_resource_cpu-vcores#$YARN_NODEMANAGER_RESOURCE_CPU_VCORES#g" ${YARN_SITE_XML}
+		
 	else
 		echo "Not Found \"${YARN_SITE_XML_DIR}\" or \"${BIN_DIR}/chenke.sb\" file!"  |  tee -a $LOG_FILE
 	fi
