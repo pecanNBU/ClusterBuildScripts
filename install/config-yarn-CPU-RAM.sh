@@ -7,7 +7,7 @@
 ## Author:      liusiyang
 ## Created:     2017-12-11
 ################################################################################
-#set -x  ## 用于调试用，不用的时候可以注释掉
+set -x  ## 用于调试用，不用的时候可以注释掉
 
 #---------------------------------------------------------------------#
 #                              定义变量                                #
@@ -26,7 +26,7 @@ cd tool/
 ## yarn-utils.py脚本目录
 YARN_UTIL_DIR=`pwd`
 ## 获取当前机器core数量
-CORES=$(cat /proc/cpuinfo| grep "physical id"| sort| uniq| wc -l)
+CORES=$(cat /proc/cpuinfo| grep "processor"| wc -l)
 ## 配置nodemanager 最大的核数
 YARN_NODEMANAGER_RESOURCE_CPU_VCORES=$(echo `echo "scale=1;$CORES*0.8"|bc`  | awk -F "." '{print $1}')
 ## 获取当前机器内存
@@ -38,6 +38,11 @@ HBASE=True                              ## True代表使用，False代表不使�
 
 ## cluster_conf.properties文件目录
 CONF_DIR=${CLUSTER_BUILD_SCRIPTS_DIR}/conf
+
+## 获取JDK分发节点
+CLUSTER_HOST=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+HOSTNAMES=(${CLUSTER_HOST//;/ })  
+
 ## 最终安装的根目录，所有bigdata 相关的根目录
 INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## yar-site.xml目录
@@ -143,7 +148,11 @@ function config_yarn_site_xml ()
 		fi
 		
 		## 配置nodemanager可用的最大核数
-		sed -i "s#yarn_nodemanager_resource_cpu-vcores#$YARN_NODEMANAGER_RESOURCE_CPU_VCORES#g" ${YARN_SITE_XML}
+		grep -q "yarn.nodemanager.resource.cpu-vcores" ${YARN_SITE_XML}
+		if [[ $? -eq 0 ]]; then
+		    num6=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.nodemanager.resource.cpu-vcores | awk '{print $1}') +1 ]
+		    sed -i "${num6}c ${VALUE}${YARN_NODEMANAGER_RESOURCE_CPU_VCORES}${VALUE_END}" ${YARN_SITE_XML}
+		fi
 		
 	else
 		echo "Not Found \"${YARN_SITE_XML_DIR}\" or \"${BIN_DIR}/chenke.sb\" file!"  |  tee -a $LOG_FILE
@@ -164,6 +173,9 @@ function main()
 {
     config_yarn
     config_yarn_site_xml
+    for host in ${HOSTNAMES[@]};do
+        scp ${YARN_SITE_XML} ${host}:${YARN_SITE_XML}
+    done
 }
 
 #---------------------------------------------------------------------#
