@@ -30,6 +30,10 @@ ALL_LOG_PATH=$(grep Cluster_LOGSDir ${CONF_DIR}/cluster_conf.properties|cut -d '
 HIVE_LOG_PATH=${ALL_LOG_PATH}/hive
 ## hive的启动停止日志目录
 HIVE_LOG_FILE=${HIVE_LOG_PATH}/hive-log.log
+##metastor_log
+HIVE_METASTORE_LOG=${HIVE_LOG_PATH}/metastor.log
+##HIVEserver log
+HIVE_HIVERSERVER2_LOG=${HIVE_LOG_PATH}/hiveserver2.log
 
 ## hive的安装节点，放入数组中
 HIVE_HOSTNAME_LISTS=$(grep Meta_ThriftServer ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
@@ -50,23 +54,23 @@ do
 	# 判断Hive是否已经启动：进程中是否已经有runjar，假如有的话，不启动HiveServer和Hivemetastore
 	hive_start=$(ssh root@${name} "source /etc/profile;jps | grep RunJar | grep -v grep | gawk '{print $1}'")
 	if [ "${hive_start}" = "" ];then   # 若该字符串为空，说明hive未启动，需要执行启动脚本
-		## 启动hiveserver2
-		echo -e "启动HiveServer服务："
-		ssh root@$name "nohup ${INSTALL_HOME}/Hive/hive/bin/hive --service hiveserver2 >${HIVE_LOG_FILE} 2>&1 &"
-		if [ $? -eq 0 ];then
-			echo -e '$name HiveServer startsuccess \n'
-		else 
-			echo -e '$name HiveServer startfailed \n'
-		fi
-		
 		## 启动metastore
 		echo -e "启动Hivemetastore服务："
-		ssh root@$name "nohup ${INSTALL_HOME}/Hive/hive/bin/hive --service metastore >${HIVE_LOG_FILE} 2>&1 &"
+		ssh root@$name "nohup ${INSTALL_HOME}/Hive/hive/bin/hive --service metastore >${HIVE_METASTORE_LOG} 2>&1 &"
 		if [ $? -eq 0 ];then
 			echo -e '$name Hive metastore startsuccess \n'
 		else
 			echo -e '$name Hive metastore startfailed \n'
 		fi	
+		
+		## 启动hiveserver2
+		echo -e "启动HiveServer服务："
+		ssh root@$name "nohup ${INSTALL_HOME}/Hive/hive/bin/hive --service hiveserver2 >${HIVE_HIVERSERVER2_LOG} 2>&1 &"
+		if [ $? -eq 0 ];then
+			echo -e '$name HiveServer startsuccess \n'
+		else 
+			echo -e '$name HiveServer startfailed \n'
+		fi
 	else
 		echo "$name上Hive已启动,不执行启动脚本."
 	fi
