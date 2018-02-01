@@ -27,22 +27,14 @@ cd tool/
 YARN_UTIL_DIR=`pwd`
 ## 获取当前机器core数量
 CORES=$(cat /proc/cpuinfo| grep "processor"| wc -l)
-## 配置nodemanager 最大的核数
-YARN_NODEMANAGER_RESOURCE_CPU_VCORES=$(echo `echo "scale=1;$CORES*0.8"|bc`  | awk -F "." '{print $1}')
 ## 获取当前机器内存
 MEMORY=$(echo "$(free -h | grep "Mem" | awk '{print $2}')" | sed -r 's/[^0-9.]+//g')
+## yarn node manager 的最大内存
+YARN_MAX_MEN=$(echo `echo "scale=1;${MEMORY}*0.8*1024"|bc`  | awk -F "." '{print $1}')
 ## 获取当前机器上挂载的磁盘个数
 DISKS=1
-## 是否使用HBase
-HBASE=True                              ## True代表使用，False代表不使用
-
 ## cluster_conf.properties文件目录
 CONF_DIR=${CLUSTER_BUILD_SCRIPTS_DIR}/conf
-
-## 获取JDK分发节点
-CLUSTER_HOST=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
-HOSTNAMES=(${CLUSTER_HOST//;/ })  
-
 ## 最终安装的根目录，所有bigdata 相关的根目录
 INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## yar-site.xml目录
@@ -53,10 +45,13 @@ YARN_SITE_XML=${YARN_SITE_XML_DIR}/yarn-site.xml
 VALUE="<value>"
 ## </value>
 VALUE_END="</value>"
+## 获取Yarn-site.xml 分发节点
+CLUSTER_HOST=$(grep Cluster_HostName ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+HOSTNAMES=(${CLUSTER_HOST//;/ }) 
 
 
 #####################################################################
-# 函数名:config_yarn
+# 函数名:config_yarn,这个函数已经弃用
 # 描述: 配置yarn的CPU和内存
 # 参数: N/A
 # 返回值: N/A
@@ -89,76 +84,22 @@ function config_yarn_site_xml ()
     echo "****************************************************"  | tee -a $LOG_FILE
 	cd ${YARN_SITE_XML_DIR}
 	echo “进入${YARN_SITE_XML_DIR}目录，准备配置yarn-site.xml”  |  tee -a $LOG_FILE
-	if [ -f "${YARN_SITE_XML}" ] && [ -f "${BIN_DIR}/chenke.sb" ]; then
-		echo “正在配置yarn-site.xml，请稍候.......”  | tee -a $LOG_FILE
-		## 配置yarn.scheduler.minimum-allocation-mb参数
-		grep -q "yarn.scheduler.minimum-allocation-mb" ${YARN_SITE_XML}
-		if [[ $? -eq 0 ]]; then
-			num1=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.scheduler.minimum-allocation-mb | awk '{print $1}') +1 ]
-			val1=$(grep yarn.scheduler.minimum-allocation-mb ${BIN_DIR}/chenke.sb | cut -d '=' -f2)
-			val11="${VALUE}${val1}${VALUE_END}"
-			sed -i "${num1}c ${val11}" ${YARN_SITE_XML} 
-			echo "config yarn.scheduler.minimum-allocation-mb=${val1}"  |  tee -a $LOG_FILE
-		else
-			echo "Not fount \"yarn.nodemanager.resource.memory-mb\"!"  |  tee -a $LOG_FILE
-		fi
-		## 配置yarn.scheduler.maximum-allocation-mb参数
-		grep -q "yarn.scheduler.maximum-allocation-mb" ${YARN_SITE_XML}
-		if [[ $? -eq 0 ]]; then
-			num2=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.scheduler.maximum-allocation-mb | awk '{print $1}') +1 ]
-			val2=$(grep yarn.scheduler.maximum-allocation-mb ${BIN_DIR}/chenke.sb | cut -d '=' -f2)
-			val22="${VALUE}${val2}${VALUE_END}"
-			sed -i "${num2}c ${val22}" ${YARN_SITE_XML}
-			echo "config yarn.scheduler.maximum-allocation-mb=${val2}"  |  tee -a $LOG_FILE
-		else
-			echo "Not fount \"yarn.scheduler.maximum-allocation-mb\"!"  |  tee -a $LOG_FILE
-		fi
-		## 配置yarn.nodemanager.resource.memory-mb参数
+	if [ -f "${YARN_SITE_XML}" ]; then
+		## 配置yarn nodeManager 可以支配的最大内存
 		grep -q "yarn.nodemanager.resource.memory-mb" ${YARN_SITE_XML}
 		if [[ $? -eq 0 ]]; then
-			num3=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.nodemanager.resource.memory-mb | awk '{print $1}') +1 ]
-			val3=$(grep yarn.nodemanager.resource.memory-mb ${BIN_DIR}/chenke.sb | cut -d '=' -f2)
-			val33="${VALUE}${val3}${VALUE_END}"
-			sed -i "${num3}c ${val33}" ${YARN_SITE_XML}
-			echo "config yarn.nodemanager.resource.memory-mb=${val3}"  |  tee -a $LOG_FILE
-		else
-			echo "Not fount \"yarn.nodemanager.resource.memory-mb\"!"  |  tee -a $LOG_FILE
+	            num3=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.nodemanager.resource.memory-mb | awk '{print $1}') +1 ]
+		    sed -i "${num3}c ${VALUE}${YARN_MAX_MEN}${VALUE_END}" ${YARN_SITE_XML}
 		fi
-		## 配置yarn.app.mapreduce.am.resource.mb参数
-		grep -q "yarn.app.mapreduce.am.resource.mb" ${YARN_SITE_XML}
-		if [[ $? -eq 0 ]]; then
-			num4=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.app.mapreduce.am.resource.mb | awk '{print $1}') +1 ]
-			val4=$(grep yarn.app.mapreduce.am.resource.mb ${BIN_DIR}/chenke.sb | cut -d '=' -f2)
-			val44="${VALUE}${val4}${VALUE_END}"
-			sed -i "${num4}c ${val44}" ${YARN_SITE_XML}
-			echo "config yarn.app.mapreduce.am.resource.mb=${val4}"  |  tee -a $LOG_FILE
-		else
-			echo "Not fount \"yarn.app.mapreduce.am.resource.mb\"!"  |  tee -a $LOG_FILE
-		fi
-		## 配置yarn.app.mapreduce.am.command-opts参数
-		grep -q "yarn.app.mapreduce.am.command-opts" ${YARN_SITE_XML}
-		if [[ $? -eq 0 ]]; then
-			num5=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.app.mapreduce.am.command-opts | awk '{print $1}') +1 ]
-			val5=$(grep yarn.app.mapreduce.am.command-opts ${BIN_DIR}/chenke.sb | cut -d '=' -f2)
-			val55="${VALUE}${val5}${VALUE_END}"
-			sed -i "${num5}c ${val55}" ${YARN_SITE_XML}
-			echo "config yarn.app.mapreduce.am.command-opts=${val5}"  |  tee -a $LOG_FILE
-		else
-			echo "Not fount \"yarn.app.mapreduce.am.command-opts\"!"  |  tee -a $LOG_FILE
-		fi
-		
-		## 配置nodemanager可用的最大核数
+                ## 配置nodemanager可用的最大核数
 		grep -q "yarn.nodemanager.resource.cpu-vcores" ${YARN_SITE_XML}
 		if [[ $? -eq 0 ]]; then
 		    num6=$[ $(cat yarn-site.xml  | cat -n | grep  yarn.nodemanager.resource.cpu-vcores | awk '{print $1}') +1 ]
-		    sed -i "${num6}c ${VALUE}${YARN_NODEMANAGER_RESOURCE_CPU_VCORES}${VALUE_END}" ${YARN_SITE_XML}
+		    sed -i "${num6}c ${VALUE}${CORES}${VALUE_END}" ${YARN_SITE_XML}
 		fi
-		
-	else
+        else
 		echo "Not Found \"${YARN_SITE_XML_DIR}\" or \"${BIN_DIR}/chenke.sb\" file!"  |  tee -a $LOG_FILE
 	fi
-	rm -f ${BIN_DIR}/chenke.sb
-	echo "已删除${BIN_DIR}/chenke.sb文件！"  | tee -a $LOG_FILE
 	echo “配置yarn-site.xml完成!!!!!!”  | tee -a $LOG_FILE
 }
 
@@ -171,7 +112,7 @@ function config_yarn_site_xml ()
 #####################################################################
 function main()
 {
-    config_yarn
+#    config_yarn
     config_yarn_site_xml
     for host in ${HOSTNAMES[@]};do
         scp ${YARN_SITE_XML} ${host}:${YARN_SITE_XML}
