@@ -29,7 +29,7 @@ CORES=$(cat /proc/cpuinfo| grep "processor"| wc -l)
 ## Node Manager 的个数
 Yarn_NumOfNodeManger=$(grep Yarn_NumOfNodeManger ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 ## 总的Executor 个数 
-Tatal_Executors=$(echo "${Yarn_NumOfNodeManger}*${CORES}" | bc)
+Tatal_CORES=$(echo "${Yarn_NumOfNodeManger}*${CORES}" | bc)
 ## SPARK_INSTALL_HOME spark 安装目录
 SPARK_INSTALL_HOME=${INSTALL_HOME}/Spark
 ## SPARK_HOME  spark 根目录
@@ -52,7 +52,8 @@ DRIVER_MEN=${1:-"8g"}
 EXECUTOR_MEN=${2:-"4g"}
 DRIVER_CORES=${3:-"4"}
 EXECUTOR_CORES=${4:-"4"}
-NUM_EXCUTORS=${5:-$Tatal_Executors}
+DEFAULT_EXECUTORS=$(echo "(${Tatal_CORES}-${DRIVER_CORES})/${EXECUTOR_CORES}" | bc)
+NUM_EXCUTORS=${5:-$DEFAULT_EXECUTORS}
 
 $SPARK_HOME/sbin/start-thriftserver.sh --master yarn --driver-memory ${DRIVER_MEN}  --executor-memory ${EXECUTOR_MEN}   --driver-cores ${DRIVER_CORES}  --executor-cores ${EXECUTOR_CORES}  --num-executors ${NUM_EXCUTORS}
 
