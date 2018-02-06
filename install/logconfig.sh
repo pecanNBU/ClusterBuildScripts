@@ -18,6 +18,7 @@ CONF_DIR=${ROOT_HOME}/conf ## 配置文件目录：conf
 
 ## 集群组件的日志文件目录 /opt/logs
 LOGS_PATH=$(grep Cluster_LOGSDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+mkdir -p ${LOGS_PATH}
 
 ES_LOG_PATH=${LOGS_PATH}/elastic ### es的log目录
 ROCKETMQ_LOG_PATH=${LOGS_PATH}/rocketmq
@@ -56,7 +57,8 @@ for hostname in ${CLUSTER_HOSTNAME_ARRY[@]};do
 	mkdir -p ${HIVE_LOG_PATH};
 	mkdir -p ${HBASE_LOG_PATH};
 	mkdir -p ${ZK_LOG_PATH};
-	mkdir -p ${HADOOP_LOG_PATH}"
+	mkdir -p ${HADOOP_LOG_PATH};
+	chmod -R 777 ${LOGS_PATH}"
 done
 
 ##### 创建es log目录

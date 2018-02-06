@@ -37,10 +37,15 @@ KAFKA_HOME=${INSTALL_HOME}/Kafka/kafka
 KAFKA_HOSTNAME_LISTS=$(grep Kafka_InstallNode ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 KAFKA_HOSTNAME_ARRY=(${KAFKA_HOSTNAME_LISTS//;/ })
 
-
+##kafka日志目录
+KAFKA_LOG=$(grep Cluster_LOGSDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 
 if [ ! -d $LOG_DIR ];then
     mkdir -p $LOG_DIR;
+fi
+
+if [ ! -d $KAFKA_LOG ];then
+    mkdir -p $KAFKA_LOG;
 fi
 
 ## 打印当前时间
@@ -104,6 +109,8 @@ do
     ssh root@$insName "sed -i 's;hostname;$insName;g' ${KAFKA_HOME}/config/server.properties"
     sed -i "s;host$num;${insName};g" ${KAFKA_HOME}/config/producer.properties
     num=$(($num+1))
+   ## 修改kafka日志
+    ssh root@$insName "sed -i 's#^log.dirs=.*#log.dirs=${KAFKA_LOG}/kafka/kafka-logs#g' ${KAFKA_HOME}/config/server.properties"
 done
 for hostName in ${KAFKA_HOSTNAME_ARRY[@]}
 do

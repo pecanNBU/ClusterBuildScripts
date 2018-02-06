@@ -42,16 +42,14 @@ else
     echo  -e 'NameServer start failed \n'
 fi
 
-broker_num=1
 for host_name in ${Broker_HostArr[@]}
 do
     ssh root@${host_name} "mkdir -p $LOG_DIR"
-    ssh root@${host_name} "source /etc/profile;chmod 755 ${ROCKETMQ_HOME}/bin/*; nohup ${ROCKETMQ_HOME}/bin/mqbroker -n ${NameServer_IP}:9876 -c ${ROCKETMQ_HOME}/conf/2m-noslave/broker-$broker_num.properties >> ${LOG_FILE} 2>&1 & "
-    broker_num=$(($broker_num+1))
+    ssh root@${host_name} "source /etc/profile;chmod 755 ${ROCKETMQ_HOME}/bin/*; nohup ${ROCKETMQ_HOME}/bin/mqbroker -n ${NameServer_IP}:9876 -c ${ROCKETMQ_HOME}/conf/2m-noslave/broker-$host_name.properties >> ${LOG_FILE} 2>&1 & "
     if [ $? -eq 0 ];then
-        echo  -e "Broker$broker_num start success \n"
+        echo  -e "$host_name 节点下的broker启动成功 \n"
     else 
-        echo  -e "Broker$broker_num start failed \n"
+        echo  -e "$host_name 节点下的broker启动失败 \n"
     fi
 done
 

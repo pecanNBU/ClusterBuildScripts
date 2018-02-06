@@ -30,6 +30,24 @@ INSTALL_HOME=$(grep Install_HomeDir ${CONF_DIR}/cluster_conf.properties|cut -d '
 ROCKETMQ_INSTALL_HOME=${INSTALL_HOME}/RocketMQ
 ## ROCKETMQ_HOME  rocketmq 根目录
 ROCKETMQ_HOME=${INSTALL_HOME}/RocketMQ/rocketmq
+
+##RocketMQ存储路径
+ROCKETMQ_STORE=${ROCKETMQ_HOME}/store
+##RocketMQ commitLog 存储路径
+ROCKETMQ_COMMITLOG=${ROCKETMQ_STORE}/commitlog
+##消费队列存储路径存储路径
+ROCKETMQ_CONSUMEQUE=${ROCKETMQ_STORE}/consumequeue
+##消息索引存储路径
+ROCKETMQ_INDEX=${ROCKETMQ_STORE}/index
+##checkpoint 文件存储路径
+ROCKETMQ_CHECKPOINT=${ROCKETMQ_STORE}/checkpoint
+##abort 文件存储路径
+ROCKETMQ_ABORT=${ROCKETMQ_STORE}/abort
+
+##rocketMq 日志目录
+ROCKETMQ_LOG=$(grep Cluster_LOGSDir ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
+
+
 ## NameServer 节点IP
 NameServer_Host=$(grep RocketMQ_Namesrv ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
 Broker_Hosts=$(grep RocketMQ_Broker ${CONF_DIR}/cluster_conf.properties|cut -d '=' -f2)
@@ -41,7 +59,7 @@ Host_Arr=(${Broker_Hostarr[*]} ${NameServer_Host})
 
 mkdir -p ${ROCKETMQ_INSTALL_HOME}
 mkdir -p ${LOG_DIR} 
-
+mkdir -p ${ROCKETMQ_LOG}
 
 echo ""  | tee  -a  $LOG_FILE
 echo ""  | tee  -a  $LOG_FILE
@@ -64,7 +82,8 @@ do
     echo "准备将ROCKETMQ分发到节点$insName："  | tee -a $LOG_FILE
     ssh root@$insName "mkdir -p  ${ROCKETMQ_INSTALL_HOME}"    
     echo "rocketmq 分发中,请稍候......"  | tee -a $LOG_FILE
-    rsync -rvl $ROCKETMQ_SOURCE_DIR/rocketmq $insName:${ROCKETMQ_INSTALL_HOME}   > /dev/null
+    ssh root@${insName} "rm -rf ${ROCKETMQ_HOME}/conf/2m-noslave/*.properties"
+    scp -r $ROCKETMQ_SOURCE_DIR/rocketmq $insName:${ROCKETMQ_INSTALL_HOME}   > /dev/null
 
     # 判断是否存在export NAMESRV_ADDR=172.18.18.108:9876这一行，若存在则替换，若不存在则追加
     namesrv_exists=$(ssh root@${insName} 'grep "export NAMESRV_ADDR=" /etc/profile')
@@ -75,6 +94,42 @@ do
     fi
 done
 rm -rf ${ROCKETMQ_SOURCE_DIR}/rocketmq
+
+##修改${ROCKETMQ_HOME}/conf/2m-noslave/目录下broker配置文件
+for hostname in ${Host_Arr[@]}
+do
+    echo "************************************************"
+    echo "准备修改$hostname节点下的broker配置文件："  | tee -a $LOG_FILE
+    Properties_Num=$(ssh root@$hostname "ls ${ROCKETMQ_HOME}/conf/2m-noslave | grep .properties | wc -l")
+    if [ $Properties_Num != 1 ];then
+        echo "$hostname节点下的broker配置文件数目不为1,请检视......"  | tee -a $LOG_FILE
+        exit 0
+    else
+        ssh root@$hostname "mv ${ROCKETMQ_HOME}/conf/2m-noslave/*.properties ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties" 
+        ssh root@$hostname "sed -i 's#^brokerName=.*#brokerName="broker-$hostname"#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        ssh root@$hostname "sed -i 's#^storePathRootDir=.*#storePathRootDir=${ROCKETMQ_STORE}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag1=$?
+        ssh root@$hostname "sed -i 's#^storePathCommitLog=.*#storePathCommitLog=${ROCKETMQ_COMMITLOG}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag2=$?
+        ssh root@$hostname "sed -i 's#^storePathConsumeQueue=.*#storePathConsumeQueue=${ROCKETMQ_CONSUMEQUE}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag3=$?
+        ssh root@$hostname "sed -i 's#^storePathIndex=.*#storePathIndex=${ROCKETMQ_INDEX}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag4=$?
+        ssh root@$hostname "sed -i 's#^storeCheckpoint=.*#storeCheckpoint=${ROCKETMQ_CHECKPOINT}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag5=$?
+        ssh root@$hostname "sed -i 's#^abortFile=.*#abortFile=${ROCKETMQ_ABORT}#g' ${ROCKETMQ_HOME}/conf/2m-noslave/broker-${hostname}.properties"
+        flag6=$?
+        ssh root@$hostname "sed -i 's#\${user.home}/logs#${ROCKETMQ_LOG}#g' ${ROCKETMQ_HOME}/conf/*.xml"
+        flag7=$?
+        if [[ ($flag1 == 0)  && ($flag2 == 0)  &&  ($flag3 == 0)  && ($flag4 == 0)  &&  ($flag5 == 0)  && ($flag6 == 0)  && ($flag7 == 0) ]];then
+            echo " 配置brokerproperties完成." | tee -a $LOG_FILE
+        else
+            echo "配置brokerproperties失败." | tee -a $LOG_FILE
+        fi
+    fi
+    echo "修改$hostname节点下的broker配置文件完成"  | tee -a $LOG_FILE
+done
+
 ## 将RocketMQ的UI地址写到指定文件中
 echo ""  | tee -a $LOG_FILE
 echo "**********************************************" | tee -a $LOG_FILE
